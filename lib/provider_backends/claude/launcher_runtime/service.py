@@ -16,7 +16,11 @@ from provider_core.contracts import ProviderRuntimeLauncher
 from provider_core.runtime_shared import apply_provider_command_template
 
 from .env_runtime.exports import CLAUDE_AUTH_COMMAND_CONTROL_ENV_KEYS
-from provider_backends.claude.cache_keepalive import configure_cache_keepalive
+from provider_backends.claude.cache_keepalive import (
+    configure_cache_keepalive,
+    keepalive_requested,
+    write_launch_status,
+)
 
 
 _ROOT_SANDBOX_ENV = {'IS_SANDBOX': '1'}
@@ -118,13 +122,17 @@ def build_start_cmd(
             f'unset {key}' for key in sorted(CLAUDE_AUTH_COMMAND_CONTROL_ENV_KEYS)
         )
     cmd_parts = provider_start_parts_fn('claude')
+    keepalive_env = {**(getattr(profile, 'env', None) or {}), **spec.env}
     if cli_supports_flag_fn(cmd_parts, '--plugin-dir'):
-        configure_cache_keepalive(
+        keepalive = configure_cache_keepalive(
             cmd_parts,
             managed_env,
-            extra_env={**(getattr(profile, 'env', None) or {}), **spec.env},
+            extra_env=keepalive_env,
             startup_args=spec.startup_args,
         )
+    else:
+        keepalive = 'plugin_dir_unsupported' if keepalive_requested(keepalive_env) else 'disabled'
+    write_launch_status(runtime_dir, keepalive)
     env_prefix = join_env_prefix(
         build_env_prefix_fn(profile=profile, extra_env=spec.env),
         auth_command_prefix,

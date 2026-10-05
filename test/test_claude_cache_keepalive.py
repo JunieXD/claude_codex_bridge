@@ -15,7 +15,12 @@ from ccbd.api_models import DeliveryScope, JobRecord, JobStatus, MessageEnvelope
 from ccbd.handlers.claude_cache import build_claude_cache_handler, INTERVAL_MS, EXPIRY_MS
 from ccbd.services.dispatcher_runtime.state import DispatcherState
 from ccbd.socket_server import CcbdSocketServer
-from provider_backends.claude.cache_keepalive import configure_cache_keepalive
+from provider_backends.claude.cache_keepalive import (
+    configure_cache_keepalive,
+    launch_warnings,
+    read_launch_status,
+    write_launch_status,
+)
 from provider_hooks.activity import write_activity
 from storage.paths import PathLayout
 
@@ -344,3 +349,29 @@ def test_real_bridge_socket_usage_lease_and_log_integration(rig, tmp_path):
         server.shutdown()
         thread.join(3)
     assert not thread.is_alive()
+
+
+def test_configure_reports_the_launch_decision(monkeypatch):
+    monkeypatch.delenv('CCB_CLAUDE_CACHE_KEEPALIVE', raising=False)
+    assert configure_cache_keepalive(['claude'], {}) == 'disabled'
+    assert configure_cache_keepalive(['claude'], {}, extra_env={'CCB_CLAUDE_CACHE_KEEPALIVE': '1'}) == 'enabled'
+    assert configure_cache_keepalive(
+        ['claude'], {}, extra_env={'CCB_CLAUDE_CACHE_KEEPALIVE': '1'}, startup_args=('--bare',),
+    ) == 'bare_or_safe_mode'
+
+
+def test_launch_warning_when_shell_flag_never_reached_ccbd(tmp_path):
+    runtime = tmp_path / 'claude'
+    write_launch_status(runtime, 'disabled')
+    assert read_launch_status(runtime) == 'disabled'
+    [warning] = launch_warnings({'claude': runtime}, shell_env={'CCB_CLAUDE_CACHE_KEEPALIVE': '1'})
+    assert '[agents.claude.env]' in warning
+    assert launch_warnings({'claude': runtime}, shell_env={}) == []
+
+
+def test_launch_warning_for_requested_but_unloaded_mod(tmp_path):
+    loaded, blocked, unknown = tmp_path / 'a', tmp_path / 'b', tmp_path / 'c'
+    write_launch_status(loaded, 'enabled')
+    write_launch_status(blocked, 'hooks_disabled')
+    warnings = launch_warnings({'a': loaded, 'b': blocked, 'c': unknown}, shell_env={})
+    assert warnings == ["Cache keepalive was requested for Claude agent 'b' but not loaded: hooks_disabled."]

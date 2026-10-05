@@ -4,7 +4,8 @@ import json
 import os
 import sys
 
-from agents.config_loader import StructuredConfigValidationError
+from agents.config_loader import StructuredConfigValidationError, load_project_config
+from provider_backends.claude.cache_keepalive import launch_warnings
 
 from cli.services.start_foreground import attach_started_project_namespace
 
@@ -107,6 +108,8 @@ def handle_start(context, command, out, services) -> int:
         summary = services.start_agents(context, command, terminal_size=terminal_size)
     else:
         summary = services.start_agents(context, command)
+    for warning in _cache_keepalive_warnings(context):
+        print(f'Warning: {warning}', file=sys.stderr)
     if interactive_attach:
         attach_started_project_namespace(context)
         return 0
@@ -249,6 +252,19 @@ def _herdr_capability_evidence_usable() -> bool:
     except Exception:
         return False
     return isinstance(payload, dict) and herdr_capability_report_supported(payload)
+
+
+def _cache_keepalive_warnings(context) -> list[str]:
+    try:
+        config = load_project_config(context.project.project_root).config
+        agents = {
+            name: context.paths.agent_provider_runtime_dir(name, 'claude')
+            for name, spec in config.agents.items()
+            if str(getattr(spec, 'provider', '') or '').strip().lower() == 'claude'
+        }
+        return launch_warnings(agents)
+    except Exception:
+        return []
 
 
 def _env_truthy(name: str) -> bool:
