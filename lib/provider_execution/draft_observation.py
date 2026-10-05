@@ -62,7 +62,8 @@ def inspect_screen(provider: str, screen: dict, *, binding: str) -> Observation:
     def result(state, reason):
         return Observation(state, binding, reason)
     if provider == 'codex':
-        arrows = [i for i, line in enumerate(lines) if line.startswith('›') and i <= cursor_y]
+        arrows = [index for index, line in enumerate(lines)
+                  if line.startswith(('›', '»')) and index <= cursor_y]
         if not arrows:
             return result('unknown', 'composer_missing')
         top = arrows[-1]
@@ -125,6 +126,10 @@ def _codex_footer(lines, styled, cursor_y: int) -> int | None:
     # The status bar is the last nonblank row, separated from the editor by
     # a blank row. Its configurable labels (including model names) are opaque.
     footer = next((i for i in range(len(lines)-1, cursor_y, -1) if lines[i].strip()), None)
+    if (footer is not None and footer > cursor_y+2
+            and re.match(r'^  \? for shortcuts\b', lines[footer])
+            and _codex_status_row(lines[footer-1], styled[footer-1])):
+        footer -= 1
     if footer is None or footer <= cursor_y+1 or lines[footer-1].strip():
         return None
     row = lines[footer]
@@ -135,11 +140,17 @@ def _codex_footer(lines, styled, cursor_y: int) -> int | None:
     # Custom status bars separate fields with a dim middle dot. Require the
     # rendering attribute as well as spacing; ordinary draft prose is not a
     # status bar just because it contains a dot or a model-like word.
-    if any(char == '·' and dim and 0 < i < len(row)-1
-           and row[i-1:i+2] == ' · '
-           for i, (char, dim, _) in enumerate(styled[footer])):
+    if _codex_status_row(row, styled[footer]):
         return footer
     return None
+
+
+def _codex_status_row(row, styled_row) -> bool:
+    return row.startswith('  ') and any(
+        char == '·' and dim and 0 < index < len(row)-1
+        and row[index-1:index+2] == ' · '
+        for index, (char, dim, _inverse) in enumerate(styled_row)
+    )
 
 
 def _editor_mode_in_footer(lines: list[str]) -> bool:
