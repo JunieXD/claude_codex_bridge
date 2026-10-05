@@ -58,6 +58,7 @@ from storage.atomic import atomic_write_text
 
 from ..home_layout import ClaudeHomeLayout, claude_layout_for_home, claude_layout_from_session_data
 from .session_paths import read_session_payload, session_file_for_runtime_dir, state_dir_for_runtime_dir
+from .settings_projection import merge_projected_hooks, merge_projected_permissions
 from .env_runtime.exports import (
     CLAUDE_INDEPENDENT_AUTH_ENV_KEYS,
     collect_explicit_api_env,
@@ -98,6 +99,7 @@ _CLAUDE_EMPTY_PLUGIN_SEED = 'ccb-empty-plugin-seed'
 _CLAUDE_EMPTY_PLUGIN_ROOT = 'ccb-empty-plugins'
 _CLAUDE_PLUGIN_PATH_KEYS = ('installLocation', 'installPath')
 _CLAUDE_AUTH_PROJECTION_MANIFEST = '.ccb-auth-projection.json'
+_CLAUDE_SETTINGS_PROJECTION_MANIFEST = '.ccb-settings-projection.json'
 
 
 def resolve_claude_home_layout(runtime_dir: Path, profile) -> ClaudeHomeLayout:
@@ -556,6 +558,11 @@ def _materialize_settings(
     )
     existing = _read_json_object(target_layout.settings_path)
     previous_projection = _read_claude_auth_projection(target_layout)
+    projection_path = target_layout.claude_dir / _CLAUDE_SETTINGS_PROJECTION_MANIFEST
+    previous_settings = _read_json_object(projection_path)
+    if payload is not None:
+        _rewrite_tilde_paths(payload, source_home=source_home)
+    _rewrite_tilde_paths(existing, source_home=source_home)
     merged = _merge_settings_payload(
         payload,
         existing=existing,
@@ -566,6 +573,7 @@ def _materialize_settings(
             previous_projection,
             'projected_env_keys',
         ),
+        previous_settings_projection=previous_settings.get('settings', {}),
     )
     if merged is None:
         return
@@ -573,6 +581,14 @@ def _materialize_settings(
     atomic_write_text(
         target_layout.settings_path,
         json.dumps(merged, ensure_ascii=False, indent=2) + '\n',
+    )
+    source_settings = payload or {}
+    atomic_write_text(
+        projection_path,
+        json.dumps({
+            'schema_version': 1,
+            'settings': {key: source_settings[key] for key in ('hooks', 'permissions') if key in source_settings},
+        }, ensure_ascii=False, indent=2) + '\n',
     )
 
 
@@ -1286,10 +1302,12 @@ def _merge_settings_payload(
     auto_permission: bool = False,
     command_policy=None,
     source_owned_auth_env_keys: set[str] | None = None,
+    previous_settings_projection: dict[str, object] | None = None,
 ) -> dict[str, object] | None:
     existing_payload = dict(existing or {})
     projected_payload = dict(projected or {})
     merged = dict(projected_payload)
+    previous_settings = previous_settings_projection if isinstance(previous_settings_projection, dict) else {}
     _carry_forward_managed_auth_env(
         merged,
         existing_payload,
@@ -1308,7 +1326,7 @@ def _merge_settings_payload(
                     merged.pop(key, None)
                 continue
             if key == 'hooks':
-                hooks = _merge_hooks_payload(projected_payload.get('hooks'), value)
+                hooks = merge_projected_hooks(projected_payload.get('hooks'), value, previous_settings.get('hooks'))
                 if hooks:
                     merged[key] = hooks
                 else:
@@ -1316,11 +1334,19 @@ def _merge_settings_payload(
                 continue
             if key == 'permissions' and auto_permission and _is_ccb_only_permission_payload(value):
                 continue
+            if key == 'permissions':
+                merged[key] = merge_projected_permissions(
+                    projected_payload.get(key), value, previous_settings.get(key),
+                )
+                continue
             merged[key] = value
 
     if role_command_policy_requires_enforcement(command_policy):
         allowlist = list(claude_permission_allowlist(command_policy))
-        merged['permissions'] = {'allow': allowlist, 'deny': []}
+        restrictions = merged.get('permissions', {})
+        merged['permissions'] = {'allow': allowlist, 'deny': restrictions.get('deny', [])}
+        if restrictions.get('ask'):
+            merged['permissions']['ask'] = restrictions['ask']
 
     if (
         not _inherits_config(profile)
@@ -1356,47 +1382,8 @@ def _merge_enabled_plugins_payload(projected: object, existing: object) -> dict[
     return merged
 
 
-def _merge_hooks_payload(projected: object, existing: object) -> dict[str, object]:
-    projected_hooks = _settings_mapping_copy(projected)
-    existing_hooks = _settings_mapping_copy(existing)
-    if not projected_hooks:
-        return existing_hooks
-    if not existing_hooks:
-        return projected_hooks
-
-    merged = dict(projected_hooks)
-    for event_name, existing_groups in existing_hooks.items():
-        projected_groups = merged.get(event_name)
-        if not isinstance(existing_groups, list):
-            if event_name not in merged:
-                merged[event_name] = _clone_jsonish(existing_groups)
-            continue
-        if not isinstance(projected_groups, list):
-            if event_name in merged:
-                continue
-            merged[event_name] = [_clone_jsonish(group) for group in existing_groups]
-            continue
-        fingerprints = {_json_fingerprint(group) for group in projected_groups}
-        groups = list(projected_groups)
-        for group in existing_groups:
-            fingerprint = _json_fingerprint(group)
-            if fingerprint in fingerprints:
-                continue
-            groups.append(_clone_jsonish(group))
-            fingerprints.add(fingerprint)
-        merged[event_name] = groups
-    return merged
-
-
 def _settings_mapping_copy(value: object) -> dict[str, object]:
     return dict(_clone_jsonish(value)) if isinstance(value, dict) else {}
-
-
-def _json_fingerprint(value: object) -> str:
-    try:
-        return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
-    except Exception:
-        return repr(value)
 
 
 def _is_ccb_only_permission_payload(value: object) -> bool:
@@ -1411,7 +1398,7 @@ def _is_ccb_only_permission_payload(value: object) -> bool:
     if any(not item.startswith(_CLAUDE_CCB_PERMISSION_PREFIX) for item in normalized):
         return False
     deny = value.get('deny')
-    return deny in (None, [])
+    return deny in (None, []) and value.get('ask') in (None, [])
 
 
 def _carry_forward_managed_auth_env(
