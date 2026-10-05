@@ -128,6 +128,9 @@ def _source_runtime_allowed(root: Path, cwd: Path, argv: list[str]) -> tuple[boo
         return True, ""
     if _is_safe_introspection(argv):
         return True, ""
+    installed_root = os.environ.get("CCB_INSTALLED_SOURCE_ROOT", "")
+    if installed_root and Path(installed_root).expanduser().resolve() == root.resolve():
+        return True, ""
     if os.environ.get("CCB_SOURCE_RUNTIME_OK") == "1":
         return True, ""
     if os.environ.get("PYTEST_CURRENT_TEST"):

@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+from pathlib import Path
+from types import SimpleNamespace
+
 import pytest
+
+from agents.models import RestoreMode
 
 from provider_backends.codex.start_cmd_runtime.parsing import (
     extract_resume_session_id,
@@ -178,3 +183,75 @@ def test_remote_resume_blocked_by_permission_overrides_spellings(args, expected)
     )
 
     assert _remote_resume_blocked_by_permission_overrides(args) is expected
+
+
+@pytest.mark.parametrize('startup_args', [
+    ('resume', 'user-session'), ('resume', '--last'), ('fork', 'user-session'),
+    ('--profile', 'custom', 'resume', 'user-session'),
+    ('--approve-for-me', 'resume', 'user-session'),
+    ('-m', 'resume', 'fork', 'user-session'),
+])
+def test_explicit_codex_continuation_never_adds_automatic_restore(tmp_path: Path, startup_args):
+    from provider_backends.codex.launcher_runtime.command_runtime.service import _codex_args
+
+    def unexpected_lookup(*arguments, **keywords):
+        raise AssertionError('Explicit continuation must not inspect CCB history')
+
+    state = {}
+    args = _codex_args(
+        SimpleNamespace(auto_permission=True, restore=True),
+        SimpleNamespace(role=None, restore_default=RestoreMode.AUTO, startup_args=startup_args),
+        tmp_path, profile=None, provider_start_parts=['codex'],
+        load_resume_session_id_fn=unexpected_lookup,
+        load_linked_continuation_session_id_fn=unexpected_lookup,
+        launch_context=state,
+    )
+    assert tuple(args[-len(startup_args):]) == startup_args
+    assert state == {}
+
+
+@pytest.mark.parametrize('startup_args', [
+    ('--model', 'resume'), ('-mresume',), ('--profile=fork',), ('-p', 'fork'),
+])
+def test_codex_option_values_do_not_disable_automatic_restore(tmp_path: Path, startup_args):
+    from provider_backends.codex.launcher_runtime.command_runtime.service import _codex_args
+
+    args = _codex_args(
+        SimpleNamespace(auto_permission=False, restore=True),
+        SimpleNamespace(role=None, restore_default=RestoreMode.AUTO, startup_args=startup_args),
+        tmp_path, profile=None, provider_start_parts=['codex'],
+        load_resume_session_id_fn=lambda *arguments, **keywords: 'ccb-session',
+    )
+    assert args[-2:] == ['resume', 'ccb-session']
+
+
+@pytest.mark.parametrize('startup_args', [
+    ('resume', 'user-session'), ('resume', '--last'), ('fork', 'user-session'),
+    ('resume', 'user-session', '--no-alt-screen'),
+])
+def test_explicit_codex_continuation_uses_native_cli(monkeypatch, tmp_path: Path, startup_args):
+    from provider_backends.codex.launcher_runtime.command_runtime import service
+
+    def unexpected_managed_command(*arguments, **keywords):
+        raise AssertionError('Explicit CLI session controls must not use the managed remote bridge')
+
+    monkeypatch.setattr(service, '_env_map', lambda *arguments, **keywords: {})
+    state = {'project_root': str(tmp_path)}
+    command = service.build_start_cmd(
+        SimpleNamespace(auto_permission=False, restore=True),
+        SimpleNamespace(
+            role=None, name='codex', restore_default=RestoreMode.AUTO,
+            startup_args=startup_args, provider_command_template=None,
+        ),
+        tmp_path, 'launch-id',
+        load_resolved_provider_profile_fn=lambda runtime: None,
+        prepare_codex_home_overrides_fn=lambda *arguments, **keywords: {},
+        provider_start_parts_fn=lambda provider: ['codex'],
+        load_resume_session_id_fn=unexpected_managed_command,
+        build_codex_shell_prefix_fn=lambda **keywords: [],
+        supports_managed_app_server_fn=lambda parts: True,
+        build_managed_app_server_command_fn=unexpected_managed_command,
+        prepared_state=state,
+    )
+    assert command.endswith(' '.join(startup_args))
+    assert state['codex_app_server_enabled'] is False

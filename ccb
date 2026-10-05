@@ -2,12 +2,17 @@
 # ccb — bash launcher: resolve symlink, locate _ccb-python (source layout has it
 # under bin/, installed layout has it side-by-side), exec ccb.py.
 src="${BASH_SOURCE[0]}"
+entry_dir="$(cd -P "$(dirname "$src")" && pwd)"
+entry_path="$entry_dir/$(basename "$src")"
 while [[ -L "$src" ]]; do
   dir="$(cd -P "$(dirname "$src")" && pwd)"
   src="$(readlink "$src")"
   [[ "$src" != /* ]] && src="$dir/$src"
 done
 SCRIPT_DIR="$(cd -P "$(dirname "$src")" && pwd)"
+if [[ -L "$entry_path" && "$entry_path" != "$SCRIPT_DIR/ccb" && -e "$SCRIPT_DIR/.git" ]]; then
+  export CCB_INSTALLED_SOURCE_ROOT="$SCRIPT_DIR"
+fi
 if [[ -x "$SCRIPT_DIR/bin/_ccb-python" ]]; then
   launcher="$SCRIPT_DIR/bin/_ccb-python"
   target="$SCRIPT_DIR/ccb.py"

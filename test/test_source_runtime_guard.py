@@ -17,6 +17,7 @@ def _run_source_ccb(args: list[str], *, cwd: Path, extra_env: dict[str, str] | N
     env.pop("PYTEST_CURRENT_TEST", None)
     env.pop("CCB_SOURCE_RUNTIME_OK", None)
     env.pop("CCB_SOURCE_ALLOWED_ROOTS", None)
+    env.pop("CCB_INSTALLED_SOURCE_ROOT", None)
     if extra_env:
         env.update(extra_env)
     return subprocess.run(
@@ -138,6 +139,35 @@ def test_source_ccb_explicit_override_allows_one_off_run(tmp_path: Path) -> None
 
     assert proc.returncode == 0
     assert "config_status: valid" in proc.stdout
+
+
+def test_installed_source_launcher_allows_normal_project_without_test_override(tmp_path: Path) -> None:
+    project = tmp_path / "normal-project"
+    (project / ".ccb").mkdir(parents=True)
+    (project / ".ccb" / "ccb.config").write_text('version = 2\n[windows]\nmain = "agent1:codex"\n')
+    bin_dir = tmp_path / "installed-bin"
+    bin_dir.mkdir()
+    entry = bin_dir / "ccb"
+    entry.symlink_to(REPO_ROOT / "ccb")
+    env = dict(os.environ)
+    for name in ("PYTEST_CURRENT_TEST", "CCB_SOURCE_RUNTIME_OK", "CCB_SOURCE_ALLOWED_ROOTS", "CCB_INSTALLED_SOURCE_ROOT"):
+        env.pop(name, None)
+    env["CCB_PYTHON"] = sys.executable
+    result = subprocess.run(
+        [str(entry), "config", "validate"], cwd=project, env=env,
+        text=True, capture_output=True, timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "config_status: valid" in result.stdout
+
+
+def test_installed_source_marker_does_not_allow_another_checkout(tmp_path: Path) -> None:
+    result = _run_source_ccb(
+        ["doctor"], cwd=tmp_path,
+        extra_env={"CCB_INSTALLED_SOURCE_ROOT": str(tmp_path / "other-checkout")},
+    )
+    assert result.returncode == 1
+    assert "Refusing to run" in result.stderr
 
 
 def test_ccb_test_rejects_source_checkout_cwd() -> None:

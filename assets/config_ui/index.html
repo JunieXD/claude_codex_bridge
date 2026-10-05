@@ -1835,6 +1835,10 @@ model = "gpt-5.5"</pre>
         configValid: "Config is valid",
         configSaved: "Active config saved with a timestamped backup",
         configReloaded: "Config saved and hot reload completed",
+        configRestartRequired: "Config saved. Restart the affected agents to apply these settings; their running configuration has not changed.",
+        restartRequired: "restart required",
+        configNewerDraft: "Newer edits remain unsaved in this editor.",
+        configReloadUnexpected: "The server did not confirm a completed hot reload",
         configRemovalPending: "Config saved. The selected agent is busy and will be removed after it becomes idle.",
         configDryRun: "Reload dry-run completed",
         configOperationFailed: "Config operation failed",
@@ -2111,6 +2115,10 @@ model = "gpt-5.5"</pre>
         configValid: "配置校验通过",
         configSaved: "当前配置已保存，并已生成时间戳备份",
         configReloaded: "配置已保存并完成热加载",
+        configRestartRequired: "配置已保存，需要重启相关 Agent 才能生效；运行中的配置尚未改变。",
+        restartRequired: "需要重启",
+        configNewerDraft: "你后续的编辑仍保留在草稿中，尚未保存。",
+        configReloadUnexpected: "服务器未确认热加载完成",
         configRemovalPending: "配置已保存。所选 Agent 正忙，将在空闲后自动删除。",
         configDryRun: "热加载 dry-run 已完成",
         configOperationFailed: "配置操作失败",
@@ -2278,6 +2286,8 @@ model = "gpt-5.5"</pre>
     let draftText = "";
     let draftLoaded = false;
     let draftDirty = false;
+    let draftRevision = 0;
+    let configApplyInProgress = false;
     let visualState = null;
     let selectedWindowIndex = 0;
     let selectedPanePath = [];
@@ -2285,6 +2295,7 @@ model = "gpt-5.5"</pre>
     let visualRenderTimer = null;
     let visualRenderRevision = 0;
     let visualRenderPromise = null;
+    let visualRenderResolve = null;
     let visualRenderError = null;
     let visualDetached = false;
     let profileRecords = [];
@@ -2682,6 +2693,8 @@ main = "demo:codex"
     }
 
     function initializeVisualState(editor, { selectVersion = true, preservePercents = false } = {}) {
+      cancelVisualRender();
+      draftRevision++;
       let savedPercents = {};
       if (preservePercents && visualState && Array.isArray(visualState.windows)) {
         visualState.windows.forEach((windowItem) => {
@@ -3001,8 +3014,18 @@ main = "demo:codex"
       return documentValue;
     }
 
+    function cancelVisualRender() {
+      clearTimeout(visualRenderTimer);
+      visualRenderRevision++;
+      if (visualRenderResolve) visualRenderResolve(false);
+      visualRenderResolve = null;
+      visualRenderPromise = null;
+    }
+
     function scheduleVisualRender() {
       if (!visualState) return;
+      cancelVisualRender();
+      draftRevision++;
       visualDetached = false;
       draftDirty = true;
       visualRenderError = null;
@@ -3025,8 +3048,8 @@ main = "demo:codex"
 
       if (!window.location.protocol.startsWith("http")) return;
       const revision = ++visualRenderRevision;
-      clearTimeout(visualRenderTimer);
       visualRenderPromise = new Promise((resolve) => {
+        visualRenderResolve = resolve;
         visualRenderTimer = setTimeout(async () => {
           try {
             const result = await apiJson("/api/render", {
@@ -3528,23 +3551,31 @@ main = "demo:codex"
       }
     }
 
-    async function validateDraft() {
-      if (visualRenderPromise) await visualRenderPromise;
-      if (visualRenderError) {
-        setActionStatus(`${t("configOperationFailed")}: ${visualRenderError}`, true);
-        return false;
-      }
+    async function captureDraftSnapshot() {
+      let pending;
+      do {
+        pending = visualRenderPromise;
+        if (pending) await pending;
+      } while (pending !== visualRenderPromise);
+      if (visualRenderError) throw new Error(visualRenderError);
       syncDraftFromEditor();
+      return { text: draftText, revision: draftRevision, digest: activeConfigDigest };
+    }
+
+    async function validateDraft(candidate = null) {
       const state = document.getElementById("validateState");
       try {
+        const supplied = candidate && typeof candidate.text === "string";
+        const snapshot = supplied ? candidate : await captureDraftSnapshot();
         const result = await apiJson("/api/validate", {
           method: "POST",
-          body: JSON.stringify({ text: draftText })
+          body: JSON.stringify({ text: snapshot.text })
         });
+        if (snapshot.revision !== draftRevision) return Boolean(supplied);
         state.className = "badge ok";
         state.dataset.state = "passed";
         state.textContent = t("passed");
-        if (visualDetached && result.editor) initializeVisualState(result.editor, { selectVersion: false, preservePercents: true });
+        if (!supplied && visualDetached && result.editor) initializeVisualState(result.editor, { selectVersion: false, preservePercents: true });
         setActionStatus(`${t("configValid")}: ${result.agent_names.join(", ")}`);
         return true;
       } catch (error) {
@@ -3591,13 +3622,36 @@ main = "demo:codex"
       );
     }
 
+    function acceptSavedDraft(result, snapshot) {
+      if (!result || !result.saved || typeof result.digest !== "string") return;
+      activeConfigDigest = result.digest;
+      updateDigestBadge();
+      if (snapshot.revision !== draftRevision) {
+        draftDirty = true;
+        return;
+      }
+      draftText = snapshot.text;
+      if (result.validation && result.validation.editor) {
+        initializeVisualState(result.validation.editor, { selectVersion: false, preservePercents: true });
+      }
+      draftDirty = false;
+    }
+
+    function setConfigApplyStatus(message, failed = false) {
+      setActionStatus(draftDirty ? `${message} ${t("configNewerDraft")}` : message, failed);
+    }
+
     async function applyDraft(mode) {
-      syncDraftFromEditor();
-      if (!draftLoaded || !(await validateDraft())) return;
+      if (!draftLoaded || configApplyInProgress) return;
+      configApplyInProgress = true;
+      updateSummary();
+      let snapshot;
       try {
+        snapshot = await captureDraftSnapshot();
+        if (!(await validateDraft(snapshot))) return;
         const preview = await apiJson("/api/preview", {
           method: "POST",
-          body: JSON.stringify({ text: draftText, expected_digest: activeConfigDigest })
+          body: JSON.stringify({ text: snapshot.text, expected_digest: snapshot.digest })
         });
         if (preview.changed && !(await confirmDiff(preview.diff))) return;
         document.getElementById("diffState").className = "badge ok";
@@ -3606,16 +3660,29 @@ main = "demo:codex"
         const result = await apiJson("/api/apply", {
           method: "POST",
           body: JSON.stringify({
-            text: draftText,
-            expected_digest: activeConfigDigest,
+            text: snapshot.text,
+            expected_digest: snapshot.digest,
             mode
           })
         });
-        activeConfigDigest = result.digest;
-        updateDigestBadge();
-        draftDirty = false;
-        if (result.validation && result.validation.editor) {
-          initializeVisualState(result.validation.editor, { selectVersion: false, preservePercents: true });
+        if (mode === "hot_reload" && !result.restart_required && result.status !== "restart_required" && result.status !== "reloaded") {
+          const error = new Error(t("configReloadUnexpected"));
+          error.payload = result;
+          throw error;
+        }
+        acceptSavedDraft(result, snapshot);
+        if (result.restart_required || result.status === "restart_required") {
+          const planClass = result.dry_run && result.dry_run.plan_class;
+          if (planClass) {
+            document.getElementById("dryRunState").className = "badge warn";
+            document.getElementById("dryRunState").textContent = planClass;
+            document.getElementById("planClass").textContent = planClass;
+          }
+          document.getElementById("applyState").className = "badge warn";
+          document.getElementById("applyState").textContent = t("restartRequired");
+          const agents = Array.isArray(result.affected_agents) ? result.affected_agents.join(", ") : "";
+          setConfigApplyStatus(`${t("configRestartRequired")}${agents ? ` (${agents})` : ""}`);
+          return;
         }
         if (mode === "hot_reload") {
           document.getElementById("dryRunState").className = "badge ok";
@@ -3623,16 +3690,12 @@ main = "demo:codex"
           document.getElementById("applyState").className = "badge ok";
           document.getElementById("applyState").textContent = t("safe");
           document.getElementById("planClass").textContent = result.dry_run.plan_class;
-          setActionStatus(t("configReloaded"));
+          setConfigApplyStatus(t("configReloaded"));
         } else {
-          setActionStatus(t("configSaved"));
+          setConfigApplyStatus(t("configSaved"));
         }
       } catch (error) {
-        if (error.payload && error.payload.digest) {
-          activeConfigDigest = error.payload.digest;
-          updateDigestBadge();
-          draftDirty = false;
-        }
+        if (snapshot) acceptSavedDraft(error.payload, snapshot);
         if (mode === "hot_reload" && pendingAgentRemoval(error.payload)) {
           const planClass = error.payload.reload.plan_class;
           document.getElementById("dryRunState").className = "badge ok";
@@ -3640,12 +3703,20 @@ main = "demo:codex"
           document.getElementById("applyState").className = "badge warn";
           document.getElementById("applyState").textContent = t("waiting");
           document.getElementById("planClass").textContent = planClass;
-          setActionStatus(t("configRemovalPending"));
+          setConfigApplyStatus(t("configRemovalPending"));
           return;
         }
         document.getElementById("applyState").className = "badge warn";
         document.getElementById("applyState").textContent = t("blocked");
-        setActionStatus(`${t("configOperationFailed")}: ${error.message}`, true);
+        setConfigApplyStatus(`${t("configOperationFailed")}: ${error.message}`, true);
+      } finally {
+        configApplyInProgress = false;
+        const status = document.getElementById("actionDetail");
+        const message = status.textContent;
+        const color = status.style.color;
+        updateSummary();
+        status.textContent = message;
+        status.style.color = color;
       }
     }
 
@@ -3987,6 +4058,10 @@ active config: unchanged`;
         dryRun.disabled = false;
         apply.textContent = t("activate");
       }
+      if (configApplyInProgress) {
+        apply.disabled = true;
+        saveActive.disabled = true;
+      }
     }
 
     function showPending(target) {
@@ -4051,6 +4126,8 @@ active config: unchanged`;
       const tomlEditor = document.getElementById("tomlEditor");
       if (tomlEditor) {
         tomlEditor.addEventListener("input", () => {
+          cancelVisualRender();
+          draftRevision++;
           draftText = tomlEditor.value;
           draftDirty = true;
           visualDetached = true;

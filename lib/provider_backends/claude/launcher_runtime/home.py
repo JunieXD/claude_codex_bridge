@@ -58,7 +58,7 @@ from storage.atomic import atomic_write_text
 
 from ..home_layout import ClaudeHomeLayout, claude_layout_for_home, claude_layout_from_session_data
 from .session_paths import read_session_payload, session_file_for_runtime_dir, state_dir_for_runtime_dir
-from .settings_projection import merge_projected_hooks, merge_projected_permissions
+from .settings_projection import merge_projected_hooks, merge_projected_permissions, merge_projected_plugins
 from .env_runtime.exports import (
     CLAUDE_INDEPENDENT_AUTH_ENV_KEYS,
     collect_explicit_api_env,
@@ -587,7 +587,10 @@ def _materialize_settings(
         projection_path,
         json.dumps({
             'schema_version': 1,
-            'settings': {key: source_settings[key] for key in ('hooks', 'permissions') if key in source_settings},
+            'settings': {
+                key: source_settings[key]
+                for key in ('hooks', 'permissions', 'enabledPlugins') if key in source_settings
+            },
         }, ensure_ascii=False, indent=2) + '\n',
     )
 
@@ -1319,7 +1322,9 @@ def _merge_settings_payload(
         value = existing_payload.get(key)
         if value is not None:
             if key == 'enabledPlugins':
-                enabled_plugins = _merge_enabled_plugins_payload(projected_payload.get('enabledPlugins'), value)
+                enabled_plugins = merge_projected_plugins(
+                    projected_payload.get('enabledPlugins'), value, previous_settings.get('enabledPlugins'),
+                )
                 if enabled_plugins:
                     merged[key] = enabled_plugins
                 else:
@@ -1368,22 +1373,6 @@ def _merge_settings_payload(
     if projected is not None:
         return {}
     return None
-
-
-def _merge_enabled_plugins_payload(projected: object, existing: object) -> dict[str, object]:
-    existing_plugins = _settings_mapping_copy(existing)
-    projected_plugins = _settings_mapping_copy(projected)
-    if not existing_plugins:
-        return projected_plugins
-    if not projected_plugins:
-        return existing_plugins
-    merged = dict(existing_plugins)
-    merged.update(projected_plugins)
-    return merged
-
-
-def _settings_mapping_copy(value: object) -> dict[str, object]:
-    return dict(_clone_jsonish(value)) if isinstance(value, dict) else {}
 
 
 def _is_ccb_only_permission_payload(value: object) -> bool:

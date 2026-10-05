@@ -111,3 +111,78 @@ def test_ccb_allowlist_does_not_hide_agent_local_ask_restrictions():
     )
     assert payload['permissions']['deny'] == ['Agent']
     assert payload['permissions']['ask'] == ['WebFetch']
+
+
+@pytest.mark.parametrize('fresh_hooks', [[hook('echo new')], []])
+def test_local_hook_in_inherited_group_does_not_keep_removed_command(tmp_path, fresh_hooks):
+    source, target = tmp_path / 'source', tmp_path / 'agent'
+    write_settings(source, {'hooks': {'PreToolUse': [hook('echo old')]}})
+    payload = materialize(source, target)
+    payload['hooks']['PreToolUse'][0]['hooks'].append({'type': 'command', 'command': 'echo local'})
+    write_settings(target, payload)
+    write_settings(source, {'hooks': {'PreToolUse': fresh_hooks}})
+    payload = materialize(source, target)
+    assert payload['hooks']['PreToolUse'] == [*fresh_hooks, hook('echo local')]
+    assert materialize(source, target)['hooks'] == payload['hooks']
+
+
+def test_local_hook_promoted_to_source_is_not_duplicated(tmp_path):
+    source, target = tmp_path / 'source', tmp_path / 'agent'
+    write_settings(source, {'hooks': {'PreToolUse': [hook('echo old')]}})
+    payload = materialize(source, target)
+    local = {'type': 'command', 'command': 'echo local'}
+    payload['hooks']['PreToolUse'][0]['hooks'].append(local)
+    write_settings(target, payload)
+    fresh = hook('echo new')
+    fresh['hooks'].append(local)
+    write_settings(source, {'hooks': {'PreToolUse': [fresh]}})
+    assert materialize(source, target)['hooks']['PreToolUse'] == [fresh]
+
+
+def test_locally_changed_hook_matcher_is_preserved(tmp_path):
+    source, target = tmp_path / 'source', tmp_path / 'agent'
+    write_settings(source, {'hooks': {'PreToolUse': [hook('echo original')]}})
+    payload = materialize(source, target)
+    payload['hooks']['PreToolUse'][0]['matcher'] = 'Read'
+    write_settings(target, payload)
+    write_settings(source, {})
+    assert materialize(source, target)['hooks']['PreToolUse'][0]['matcher'] == 'Read'
+
+
+def test_removed_inherited_plugin_is_removed_but_local_plugin_survives(tmp_path):
+    source, target = tmp_path / 'source', tmp_path / 'agent'
+    write_settings(source, {'enabledPlugins': {'old@marketplace': True}})
+    payload = materialize(source, target)
+    payload['enabledPlugins']['local@marketplace'] = True
+    write_settings(target, payload)
+    write_settings(source, {'enabledPlugins': {'new@marketplace': True}})
+    payload = materialize(source, target)
+    assert payload['enabledPlugins'] == {'new@marketplace': True, 'local@marketplace': True}
+    assert materialize(source, target)['enabledPlugins'] == payload['enabledPlugins']
+    write_settings(source, {})
+    assert materialize(source, target)['enabledPlugins'] == {'local@marketplace': True}
+
+
+def test_removed_inherited_plugin_retains_explicit_local_disable(tmp_path):
+    source, target = tmp_path / 'source', tmp_path / 'agent'
+    write_settings(source, {'enabledPlugins': {'plugin@marketplace': True}})
+    payload = materialize(source, target)
+    payload['enabledPlugins']['plugin@marketplace'] = False
+    write_settings(target, payload)
+    write_settings(source, {})
+    assert materialize(source, target)['enabledPlugins'] == {'plugin@marketplace': False}
+
+
+def test_removing_last_inherited_plugin_removes_enabled_plugins_key(tmp_path):
+    source, target = tmp_path / 'source', tmp_path / 'agent'
+    write_settings(source, {'enabledPlugins': {'plugin@marketplace': True}})
+    materialize(source, target)
+    write_settings(source, {})
+    assert 'enabledPlugins' not in materialize(source, target)
+
+
+def test_legacy_plugin_enablement_without_baseline_is_preserved(tmp_path):
+    source, target = tmp_path / 'source', tmp_path / 'agent'
+    write_settings(source, {})
+    write_settings(target, {'enabledPlugins': {'unknown@marketplace': True}})
+    assert materialize(source, target)['enabledPlugins'] == {'unknown@marketplace': True}

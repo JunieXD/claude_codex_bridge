@@ -91,6 +91,7 @@ def _continuation_subcommand_index(tokens: list[str], codex_index: int) -> int |
                      '--local-provider', '--remote'}
     flags = {'--oss', '--full-auto', '--dangerously-bypass-approvals-and-sandbox',
              '--dangerously-bypass-hook-trust',
+             '--approve-for-me',
              '--search', '--no-alt-screen', '-h', '--help', '-V', '--version'}
     index = codex_index + 1
     while index < len(tokens):

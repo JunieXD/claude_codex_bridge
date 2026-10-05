@@ -11,6 +11,32 @@ def _fingerprint(value) -> str:
     return json.dumps(value, sort_keys=True, separators=(',', ':'))
 
 
+def _hook_group_key(group) -> str:
+    return _fingerprint({key: value for key, value in group.items() if key != 'hooks'})
+
+
+def _local_hook_groups(groups, baseline):
+    inherited_groups = {_fingerprint(group) for group in baseline}
+    inherited_hooks = {}
+    for group in baseline:
+        if isinstance(group, dict) and isinstance(group.get('hooks'), list):
+            inherited_hooks.setdefault(_hook_group_key(group), set()).update(
+                _fingerprint(hook) for hook in group['hooks']
+            )
+    local = []
+    for group in groups:
+        if _fingerprint(group) in inherited_groups:
+            continue
+        if isinstance(group, dict) and isinstance(group.get('hooks'), list):
+            inherited = inherited_hooks.get(_hook_group_key(group), set())
+            hooks = [hook for hook in group['hooks'] if _fingerprint(hook) not in inherited]
+            if not hooks:
+                continue
+            group = {**group, 'hooks': hooks}
+        local.append(group)
+    return local
+
+
 def merge_projected_hooks(projected, existing, previous=None) -> dict:
     source = _copy(projected) if isinstance(projected, dict) else {}
     managed = _copy(existing) if isinstance(existing, dict) else {}
@@ -21,11 +47,12 @@ def merge_projected_hooks(projected, existing, previous=None) -> dict:
             if groups != old_groups and event not in source:
                 source[event] = groups
             continue
-        inherited = {_fingerprint(group) for group in old_groups} if isinstance(old_groups, list) else set()
-        local = [group for group in groups if _fingerprint(group) not in inherited]
         if event in source and not isinstance(source[event], list):
             continue
         combined = source.get(event, [])
+        local = _local_hook_groups(
+            groups, [*(old_groups if isinstance(old_groups, list) else []), *combined],
+        )
         seen = {_fingerprint(group) for group in combined}
         for group in local:
             fingerprint = _fingerprint(group)
@@ -34,6 +61,16 @@ def merge_projected_hooks(projected, existing, previous=None) -> dict:
                 seen.add(fingerprint)
         if combined:
             source[event] = combined
+    return source
+
+
+def merge_projected_plugins(projected, existing, previous=None) -> dict:
+    source = _copy(projected) if isinstance(projected, dict) else {}
+    managed = existing if isinstance(existing, dict) else {}
+    baseline = previous if isinstance(previous, dict) else {}
+    for name, value in managed.items():
+        if name not in source and (name not in baseline or value != baseline[name]):
+            source[name] = _copy(value)
     return source
 
 

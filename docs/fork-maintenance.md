@@ -37,11 +37,28 @@ Maintained Fork: https://github.com/JunieXD/claude_codex_bridge
 - Source version checks compare this Fork's current branch ancestry with
   `origin`, distinguishing current, ahead, behind, and diverged revisions.
   They fetch Git metadata but never merge, install, or restart anything.
+- Installed source entrypoints allow ordinary projects without disabling the
+  development-checkout guard. The installed symlink launcher identifies its
+  resolved source root; direct, uninstalled source commands and `ccb_test`
+  retain their test-project restrictions.
+- Explicit Codex `resume` and `fork` startup commands take precedence over
+  automatic restoration and run through the native CLI, preserving options
+  such as `resume --last` rather than translating them into remote sessions.
+- The Config UI distinguishes saved/restart-required settings from a completed
+  hot reload. Saving validates and reviews one immutable candidate. Edits made
+  while that candidate is being saved retain their draft and undo history;
+  repeated save clicks cannot create overlapping writes. Canceled renders
+  settle their waiters, and stale render responses cannot overwrite TOML edits.
+- Track inherited Claude plugin enablement alongside hooks and permissions.
+  Removing an inherited plugin removes its enablement entry, while unrelated
+  agent-local plugins and explicit local disablement survive. Hook tracking
+  handles individual commands inside matcher groups, so adding a local hook
+  does not keep a removed inherited command or duplicate a promoted command.
 
 ## Existing managed Claude settings
 
 On the first refresh, CCB creates `.claude/.ccb-settings-projection.json` in
-the agent's private home. It records only inherited hooks and permissions,
+the agent's private home. It records inherited hooks, permissions, and plugin enablement,
 not provider authentication environment variables. Subsequent refreshes
 can replace/remove those inherited entries while retaining local changes.
 
@@ -49,6 +66,10 @@ Legacy managed homes have no reliable record of the source of old hooks.
 The first refresh preserves unknown existing hooks rather than guessing and
 deleting an agent-local hook. Review any already-stale legacy hooks once;
 source changes made after the first refresh are tracked automatically.
+The same legacy ambiguity applies to plugin entries created before plugin
+tracking was available. Unknown enablement entries are preserved on first
+refresh rather than silently uninstalling an agent-local plugin. Plugin cache
+files are not deleted automatically; this change controls enablement only.
 
 ## Installation boundary
 
@@ -57,6 +78,9 @@ Cloning, editing, and running tests do not switch an existing npm installation.
 Do not run `install.sh install` until switching is explicitly approved and
 existing tasks are finished. Later, source installation links commands back to
 this checkout; the external disk must remain mounted when those commands run.
+Invoke the installed `ccb` link for ordinary projects. The launcher supplies
+`CCB_INSTALLED_SOURCE_ROOT` only when reached through an external source-install
+symlink, and the Python guard checks that it matches the running checkout.
 
 Do not upload project `.ccb` data, provider credentials, transcripts, or logs.
 They are separate from this source repository and must remain private.
@@ -103,7 +127,10 @@ upstream automatically or push developer changes.
   test/test_composer_model_independence.py \
   test/test_config_ui_custom_thinking.py \
   test/test_config_ui_editing.py \
+  test/test_config_ui_apply.py \
   test/test_claude_settings_projection.py \
+  test/test_codex_start_cmd_parsing.py \
+  test/test_source_runtime_guard.py \
   test/test_task_presentation.py \
   test/test_config_ui.py \
   test/test_fork_source_update.py \

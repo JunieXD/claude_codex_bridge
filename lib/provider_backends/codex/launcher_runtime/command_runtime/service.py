@@ -10,6 +10,7 @@ from cli.services.role_command_policy import role_command_policy_for_spec, role_
 from provider_core.caller_env import caller_context_env, provider_user_session_env
 from provider_core.runtime_shared import apply_provider_command_template
 from provider_backends.codex.runtime_artifacts import codex_runtime_artifact_layout
+from provider_backends.codex.start_cmd_runtime.rewriting import _continuation_subcommand_index
 from provider_backends.codex.session_authority import (
     current_memory_projection_fingerprint,
     current_provider_authority_fingerprint,
@@ -80,6 +81,7 @@ def build_start_cmd(
         prefix_parts.append(f'export {exports}')
     managed_enabled = bool(
         not str(spec.provider_command_template or '').strip()
+        and _continuation_subcommand_index([*provider_start_parts, *spec.startup_args], 0) is None
         # Codex 0.145.0 advertises both `--remote` and `fork`, but combining
         # them can open a fresh thread whose session metadata has no
         # `forked_from_id`.  That silently drops the context while CCB records
@@ -233,7 +235,10 @@ def _codex_args(
             ]
         )
     codex_args.extend(spec.startup_args)
-    if should_restore_provider_history(spec.restore_default, cli_restore=command.restore):
+    if (
+        _continuation_subcommand_index(codex_args, 0) is None
+        and should_restore_provider_history(spec.restore_default, cli_restore=command.restore)
+    ):
         session_id = load_resume_session_id_fn(
             spec,
             runtime_dir,
