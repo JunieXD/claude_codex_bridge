@@ -17,7 +17,7 @@ def connect_socket(socket_path: Path, *, timeout_s: float):
     except CcbdClientError:
         raise
     except Exception as exc:
-        raise CcbdClientError(str(exc)) from exc
+        raise CcbdClientError(str(exc), retry_safe=True) from exc
 
 
 def send_request(sock, request: RpcRequest) -> None:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+import os
 from pathlib import Path
 import stat
 import subprocess
@@ -87,16 +88,21 @@ def delete_branch(repo_root: Path, branch_name: str) -> bool:
 def list_registered_worktrees(repo_root: Path) -> tuple[Path, ...]:
     if not can_use_git_worktree(repo_root):
         return ()
-    result = _git(repo_root, ['worktree', 'list', '--porcelain'])
+    result = subprocess.run(
+        ['git', '-C', str(repo_root), 'worktree', 'list', '--porcelain', '-z'],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     if result.returncode != 0:
-        raise RuntimeError(_detail(result) or 'failed to list git worktrees')
+        detail = os.fsdecode(result.stderr or result.stdout or b'').strip()
+        raise RuntimeError(detail or 'failed to list git worktrees')
 
     worktrees: list[Path] = []
-    for raw_line in (result.stdout or '').splitlines():
-        line = raw_line.strip()
-        if not line.startswith('worktree '):
+    for record in (result.stdout or b'').split(b'\0'):
+        if not record.startswith(b'worktree '):
             continue
-        worktrees.append(_normalize_path(Path(line[len('worktree ') :])))
+        worktrees.append(_normalize_path(Path(os.fsdecode(record[len(b'worktree ') :]))))
     return tuple(worktrees)
 
 

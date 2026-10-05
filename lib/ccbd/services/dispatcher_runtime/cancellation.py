@@ -4,6 +4,7 @@ from dataclasses import replace
 
 from agents.models import AgentState
 from completion.models import CompletionConfidence, CompletionDecision, CompletionStatus
+from provider_execution.service import ExecutionCancellationError
 
 from ccbd.api_models import CancelReceipt, JobStatus, TargetKind
 
@@ -38,7 +39,11 @@ def cancel_job(dispatcher, job_id: str, *, record_reply: bool = True) -> CancelR
         else None
     )
     if dispatcher._execution_service is not None:
-        dispatcher._execution_service.cancel(job_id)
+        try:
+            dispatcher._execution_service.cancel(job_id)
+        except ExecutionCancellationError as exc:
+            dispatcher._append_event(marked, 'job_cancel_failed', {'error': str(exc)}, timestamp=cancelled_at)
+            raise dispatcher._dispatch_error(str(exc)) from exc
 
     snapshot = dispatcher._snapshot_writer.load(job_id)
     snapshot_reply = str(

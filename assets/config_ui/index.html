@@ -1838,6 +1838,8 @@ model = "gpt-5.5"</pre>
         configRestartRequired: "Config saved. Restart the affected agents to apply these settings; their running configuration has not changed.",
         restartRequired: "restart required",
         configNewerDraft: "Newer edits remain unsaved in this editor.",
+        discardDraftConfirm: "Discard the current unsaved draft and load another config?",
+        configLoadSuperseded: "Loading was canceled because you edited the draft. Your edits are preserved.",
         configReloadUnexpected: "The server did not confirm a completed hot reload",
         configRemovalPending: "Config saved. The selected agent is busy and will be removed after it becomes idle.",
         configDryRun: "Reload dry-run completed",
@@ -2118,6 +2120,8 @@ model = "gpt-5.5"</pre>
         configRestartRequired: "配置已保存，需要重启相关 Agent 才能生效；运行中的配置尚未改变。",
         restartRequired: "需要重启",
         configNewerDraft: "你后续的编辑仍保留在草稿中，尚未保存。",
+        discardDraftConfirm: "放弃当前尚未保存的草稿，并加载其他配置？",
+        configLoadSuperseded: "加载期间你修改了草稿，已取消加载并保留你的修改。",
         configReloadUnexpected: "服务器未确认热加载完成",
         configRemovalPending: "配置已保存。所选 Agent 正忙，将在空闲后自动删除。",
         configDryRun: "热加载 dry-run 已完成",
@@ -2287,7 +2291,12 @@ model = "gpt-5.5"</pre>
     let draftLoaded = false;
     let draftDirty = false;
     let draftRevision = 0;
+    let savedDraftRevision = -1;
     let configApplyInProgress = false;
+    let profileSaveInProgress = false;
+    let profileLoadInProgress = false;
+    let profileLoadRevision = 0;
+    let loadedProfileName = "active";
     let visualState = null;
     let selectedWindowIndex = 0;
     let selectedPanePath = [];
@@ -3487,68 +3496,108 @@ main = "demo:codex"
     }
 
     async function loadProfile(name) {
-      if (name === "active") {
-        await loadActiveConfig();
+      const select = document.getElementById("profileSelect");
+      if (configApplyInProgress || profileSaveInProgress) {
+        select.value = loadedProfileName;
         return;
       }
+      if (draftLoaded && draftDirty && draftRevision !== savedDraftRevision && !window.confirm(t("discardDraftConfirm"))) {
+        profileLoadRevision++;
+        profileLoadInProgress = false;
+        select.value = loadedProfileName;
+        refreshActionControls();
+        return;
+      }
+      const requestRevision = ++profileLoadRevision;
+      const revision = draftRevision;
+      profileLoadInProgress = true;
+      updateSummary();
+      setActionStatus(t("configLoading"));
       try {
-        const payload = await apiJson(`/api/profile?name=${encodeURIComponent(name)}`);
-        draftText = payload.text;
-        draftDirty = true;
+        const payload = window.location.protocol.startsWith("http")
+          ? await apiJson(name === "active" ? "/api/config" : `/api/profile?name=${encodeURIComponent(name)}`)
+          : { text: templateToml(), editor: defaultVisualState() };
+        if (requestRevision !== profileLoadRevision) return;
+        if (name === "active") {
+          activeConfigDigest = payload.digest ?? null;
+          updateDigestBadge();
+        }
+        if (revision !== draftRevision) {
+          draftLoaded = true;
+          select.value = loadedProfileName;
+          setActionStatus(t("configLoadSuperseded"));
+          return;
+        }
+        if (name === "active") {
+          syncProfileOptions(payload.profiles || [], "active");
+        }
+        draftText = payload.text || templateToml();
+        draftDirty = name !== "active";
         draftLoaded = true;
+        loadedProfileName = name;
+        select.value = name;
         initializeVisualState(payload.editor || defaultVisualState());
-        setActionStatus(`${t("profileLoaded")}: ${name}`);
+        savedDraftRevision = draftRevision;
+        setActionStatus(name === "active" ? t("configLoaded") : `${t("profileLoaded")}: ${name}`);
         if (activeDrawerKind === "toml") openDrawer("toml");
       } catch (error) {
+        if (requestRevision !== profileLoadRevision) return;
+        select.value = loadedProfileName;
         setActionStatus(`${t("configOperationFailed")}: ${error.message}`, true);
+      } finally {
+        if (requestRevision === profileLoadRevision) {
+          profileLoadInProgress = false;
+          refreshActionControls();
+        }
       }
     }
 
     async function saveProfile() {
-      if (visualRenderPromise) await visualRenderPromise;
-      if (visualRenderError) {
-        setActionStatus(`${t("configOperationFailed")}: ${visualRenderError}`, true);
-        return;
-      }
-      syncDraftFromEditor();
+      if (!draftLoaded || profileSaveInProgress || configApplyInProgress || profileLoadInProgress) return;
       const selected = document.getElementById("profileSelect").value;
       const fallback = selected === "active" ? "project-profile" : selected;
       const name = String(window.prompt(t("profileNamePrompt"), fallback) || "").trim();
       if (!name) return;
+      profileSaveInProgress = true;
+      updateSummary();
       try {
+        const snapshot = await captureDraftSnapshot();
         const result = await apiJson("/api/profile", {
           method: "POST",
-          body: JSON.stringify({ name, text: draftText })
+          body: JSON.stringify({ name, text: snapshot.text })
         });
-        syncProfileOptions(result.profiles, result.name);
-        setActionStatus(`${t("profileSaved")}: ${result.name}`);
+        const newerDraft = snapshot.revision !== draftRevision;
+        if (!newerDraft) {
+          loadedProfileName = result.name;
+          savedDraftRevision = draftRevision;
+        }
+        syncProfileOptions(result.profiles, loadedProfileName);
+        setActionStatus(`${t("profileSaved")}: ${result.name}${newerDraft ? ` ${t("configNewerDraft")}` : ""}`);
       } catch (error) {
         setActionStatus(`${t("configOperationFailed")}: ${error.message}`, true);
+      } finally {
+        profileSaveInProgress = false;
+        refreshActionControls();
       }
     }
 
     async function loadActiveConfig() {
-      if (!window.location.protocol.startsWith("http")) {
-        draftText = templateToml();
-        draftLoaded = true;
-        initializeVisualState(defaultVisualState());
-        return;
-      }
-      setActionStatus(t("configLoading"));
-      try {
-        const payload = await apiJson("/api/config");
-        syncProfileOptions(payload.profiles || [], "active");
-        draftText = payload.text || templateToml();
-        activeConfigDigest = payload.digest ?? null;
-        updateDigestBadge();
-        draftLoaded = true;
-        draftDirty = false;
-        initializeVisualState(payload.editor || defaultVisualState());
-        setActionStatus(t("configLoaded"));
-        if (activeDrawerKind === "toml") openDrawer("toml");
-      } catch (error) {
-        setActionStatus(`${t("configLoadFailed")}: ${error.message}`, true);
-      }
+      await loadProfile("active");
+    }
+
+    function refreshActionControls() {
+      const status = document.getElementById("actionDetail");
+      const message = status.textContent;
+      const color = status.style.color;
+      updateSummary();
+      status.textContent = message;
+      status.style.color = color;
+    }
+
+    function warnUnsavedDraft(event) {
+      if (!draftLoaded || !draftDirty || draftRevision === savedDraftRevision) return;
+      event.preventDefault();
+      event.returnValue = "";
     }
 
     async function captureDraftSnapshot() {
@@ -3642,7 +3691,7 @@ main = "demo:codex"
     }
 
     async function applyDraft(mode) {
-      if (!draftLoaded || configApplyInProgress) return;
+      if (!draftLoaded || configApplyInProgress || profileSaveInProgress || profileLoadInProgress) return;
       configApplyInProgress = true;
       updateSummary();
       let snapshot;
@@ -3711,12 +3760,7 @@ main = "demo:codex"
         setConfigApplyStatus(`${t("configOperationFailed")}: ${error.message}`, true);
       } finally {
         configApplyInProgress = false;
-        const status = document.getElementById("actionDetail");
-        const message = status.textContent;
-        const color = status.style.color;
-        updateSummary();
-        status.textContent = message;
-        status.style.color = color;
+        refreshActionControls();
       }
     }
 
@@ -4058,9 +4102,13 @@ active config: unchanged`;
         dryRun.disabled = false;
         apply.textContent = t("activate");
       }
-      if (configApplyInProgress) {
+      document.getElementById("profileSelect").disabled = configApplyInProgress || profileSaveInProgress;
+      if (configApplyInProgress || profileSaveInProgress || profileLoadInProgress || !draftLoaded) {
         apply.disabled = true;
         saveActive.disabled = true;
+        saveProfileButton.disabled = true;
+        validate.disabled = true;
+        dryRun.disabled = true;
       }
     }
 
@@ -4184,6 +4232,7 @@ active config: unchanged`;
     document.getElementById("profileSelect").addEventListener("change", (event) => {
       loadProfile(event.target.value);
     });
+    window.addEventListener("beforeunload", warnUnsavedDraft);
     document.getElementById("historyScanBtn").addEventListener("click", scanAgentHistory);
     document.getElementById("historyCleanupBtn").addEventListener("click", cleanupAgentHistory);
     document.getElementById("historyRetentionDays").addEventListener("change", scanAgentHistory);

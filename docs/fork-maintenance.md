@@ -54,6 +54,27 @@ Maintained Fork: https://github.com/JunieXD/claude_codex_bridge
   agent-local plugins and explicit local disablement survive. Hook tracking
   handles individual commands inside matcher groups, so adding a local hook
   does not keep a removed inherited command or duplicate a promoted command.
+- Do not replay a mutating daemon request after an ambiguous write or lost
+  response. The CLI reports an unknown outcome and directs the caller to inspect
+  the queue before retrying. Connection failures before any request is sent and
+  read-only observers can still retry. Server rejections are not replayed.
+- Failed cancellation delivery leaves the execution and running job tracked,
+  reports an actionable error, and permits a later cancellation retry. A clear
+  input key alone is not an interrupt. Terminal cancellation confirms transport
+  delivery, not termination of detached child processes.
+- Profile loads ignore stale responses and preserve edits made while loading.
+  Profile saves wait for the latest visual render, capture one draft snapshot,
+  and prevent overlapping writes. Unsaved drafts prompt before profile switches
+  and browser exit. Saving an inactive profile does not apply the active config.
+  Loaded/saved profiles do not falsely trigger unsaved-draft warnings; edits
+  made during a save still do.
+- Initial task watchers tolerate transient daemon startup/unavailability for up
+  to ten seconds, bounded by the requested timeout. They never start a daemon
+  and still reject explicitly stopped projects immediately.
+- Managed Codex launch parsing shares the option-aware continuation scanner;
+  profile/model values named `fork` or `resume` do not become subcommands.
+- Worktree enumeration uses NUL-delimited Git output and preserves path spaces,
+  line breaks, carriage returns, and non-ASCII names.
 
 ## Existing managed Claude settings
 
@@ -81,6 +102,17 @@ this checkout; the external disk must remain mounted when those commands run.
 Invoke the installed `ccb` link for ordinary projects. The launcher supplies
 `CCB_INSTALLED_SOURCE_ROOT` only when reached through an external source-install
 symlink, and the Python guard checks that it matches the running checkout.
+
+The local Mac installation switched from npm to this source checkout on
+2026-10-05. Global commands, CCB skills, project-managed skill projections,
+provider hooks, and native helpers now use the Fork. Managed Codex shell snapshots were rebased
+so resumed sessions do not export the removed npm Python or library paths.
+User auth, settings, plugin configuration, model/thinking choices, project
+configuration, and conversation histories were retained. The private rollback
+backup is `/Volumes/Junie2TBSSD/Programs/CCB-migration-backup/2026-10-05`.
+Start `ccb` in the existing project to restore its agents; do not reinstall the
+upstream npm package over these source links. Future Fork updates use
+`ccb update` after all source runtimes have stopped.
 
 Do not upload project `.ccb` data, provider credentials, transcripts, or logs.
 They are separate from this source repository and must remain private.
@@ -128,6 +160,10 @@ upstream automatically or push developer changes.
   test/test_config_ui_custom_thinking.py \
   test/test_config_ui_editing.py \
   test/test_config_ui_apply.py \
+  test/test_daemon_request_replay.py \
+  test/test_execution_cancel_failure.py \
+  test/test_watch_initial_reconnect.py \
+  test/test_workspace_git_worktree.py \
   test/test_claude_settings_projection.py \
   test/test_codex_start_cmd_parsing.py \
   test/test_source_runtime_guard.py \
@@ -147,3 +183,4 @@ On macOS, use `TMPDIR=/private/tmp` for Rust socket tests to avoid the native
 Unix-domain socket path limit. The upstream sidebar test
 `header_buttons_are_right_aligned_and_kill_project` assumes `/bin/true`, which
 is unavailable on macOS; skip that test on this host. Linux can run it normally.
+Use the same short temporary root for Python Unix-socket integration tests.

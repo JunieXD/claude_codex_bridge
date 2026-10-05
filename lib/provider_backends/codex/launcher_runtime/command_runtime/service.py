@@ -188,14 +188,13 @@ def _remote_resume_blocked_by_permission_overrides(codex_args: list[str]) -> boo
     policy to force the remote path; instead the resume runs on the native
     local CLI where the policy stays effective (#346).
     """
-    for index, token in enumerate(codex_args):
-        if token != 'resume':
-            continue
-        # Terminal `resume <id>` (single argument continuation), as produced
-        # by _codex_args; ignore unrelated occurrences.
-        if index + 2 == len(codex_args):
-            return _codex_permission_overrides_present(codex_args[:index])
-    return False
+    index = _continuation_subcommand_index(codex_args, 0)
+    return bool(
+        index is not None
+        and codex_args[index] == 'resume'
+        and index + 2 == len(codex_args)
+        and _codex_permission_overrides_present(codex_args[:index])
+    )
 
 
 def _path_or_none(value: object) -> Path | None:

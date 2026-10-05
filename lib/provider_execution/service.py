@@ -30,6 +30,10 @@ from .service_state import ExecutionServiceRuntimeState, ExecutionServiceStateMi
 from .state_store import ExecutionStateStore
 
 
+class ExecutionCancellationError(RuntimeError):
+    pass
+
+
 class ExecutionService(ExecutionServiceStateMixin):
     def __init__(
         self,
@@ -117,15 +121,16 @@ class ExecutionService(ExecutionServiceStateMixin):
 
     def cancel(self, job_id: str) -> None:
         with self._active_transition_lock:
+            submission = self._active.get(job_id)
+            if submission is not None:
+                adapter = self._registry.get(submission.provider)
+                _cancel_submission(adapter, submission)
             self._starting.pop(job_id, None)
-            submission = self._active.pop(job_id, None)
+            self._active.pop(job_id, None)
             self._runtime_contexts.pop(job_id, None)
             self._pending_replays.pop(job_id, None)
             if self._state_store is not None:
                 self._state_store.remove(job_id)
-        if submission is not None:
-            adapter = self._registry.get(submission.provider)
-            _cancel_submission(adapter, submission)
 
     def capture_cancel_evidence(self, job_id: str) -> CompletionDecision | None:
         """Best-effort provider evidence capture before destructive cancellation."""
@@ -275,12 +280,12 @@ class ExecutionService(ExecutionServiceStateMixin):
         )
 
 
-def interrupt_active_submission(submission: ProviderSubmission) -> None:
+def interrupt_active_submission(submission: ProviderSubmission) -> bool:
     backend = submission.runtime_state.get("backend")
     pane_target = _runtime_pane_target(submission.runtime_state)
     if backend is None or pane_target is None:
-        return
-    interrupt_and_clear_runtime_target(backend, pane_target)
+        return submission.runtime_state.get('mode') != 'active' and not submission.runtime_state.get('prompt_sent')
+    return interrupt_and_clear_runtime_target(backend, pane_target)
 
 
 def _runtime_pane_target(runtime_state: Mapping[str, object]) -> object | None:
@@ -305,9 +310,20 @@ def _cancel_submission(adapter, submission: ProviderSubmission) -> None:
     if submission.runtime_state.get('draft_guard_enabled') and submission.runtime_state.get('prompt_sent') is False:
         return  # This job owns no provider turn or composer content yet.
     provider_cancel = getattr(adapter, 'cancel', None) if adapter is not None else None
+    native_cancelled = False
+    native_error = None
     if callable(provider_cancel):
-        provider_cancel(submission)
-    interrupt_active_submission(submission)
+        try:
+            native_cancelled = provider_cancel(submission) is not False
+        except Exception as exc:
+            native_error = exc
+    interrupted = interrupt_active_submission(submission)
+    if native_cancelled or interrupted:
+        return
+    raise ExecutionCancellationError(
+        f'could not deliver cancellation for {submission.job_id}; '
+        'the task is still tracked and may be running. Restore the terminal connection and retry cancellation.'
+    ) from native_error
 
 
-__all__ = ["ExecutionRestoreResult", "ExecutionService", "ExecutionUpdate"]
+__all__ = ["ExecutionCancellationError", "ExecutionRestoreResult", "ExecutionService", "ExecutionUpdate"]

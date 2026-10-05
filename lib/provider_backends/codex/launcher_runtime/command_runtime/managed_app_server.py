@@ -7,6 +7,7 @@ import shutil
 import subprocess
 
 from provider_backends.codex.runtime_artifacts import codex_runtime_artifact_layout
+from provider_backends.codex.start_cmd_runtime.rewriting import _continuation_subcommand_index
 
 
 def supports_managed_app_server(provider_start: tuple[str, ...]) -> bool:
@@ -132,13 +133,13 @@ def build_managed_app_server_command(
 
 
 def _split_continuation(codex_args: list[str]) -> tuple[list[str], str, str]:
-    for index, token in enumerate(codex_args):
-        if token not in {'resume', 'fork'}:
-            continue
-        if index + 1 >= len(codex_args) or index + 2 != len(codex_args):
-            raise ValueError(f'managed Codex {token} requires one terminal session id')
-        return list(codex_args[:index]), token, str(codex_args[index + 1])
-    return list(codex_args), '', ''
+    index = _continuation_subcommand_index(codex_args, 0)
+    if index is None:
+        return list(codex_args), '', ''
+    token = codex_args[index]
+    if index + 1 >= len(codex_args) or index + 2 != len(codex_args):
+        raise ValueError(f'managed Codex {token} requires one terminal session id')
+    return list(codex_args[:index]), token, str(codex_args[index + 1])
 
 
 def _split_resume(codex_args: list[str]) -> tuple[list[str], str]:

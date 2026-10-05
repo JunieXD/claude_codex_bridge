@@ -255,3 +255,31 @@ def test_explicit_codex_continuation_uses_native_cli(monkeypatch, tmp_path: Path
     )
     assert command.endswith(' '.join(startup_args))
     assert state['codex_app_server_enabled'] is False
+
+
+@pytest.mark.parametrize('startup_args', [
+    ('--profile', 'fork'), ('-p', 'resume'), ('--profile=fork',),
+    ('--model', 'resume'), ('-m', 'fork'),
+])
+def test_managed_codex_launch_preserves_continuation_named_option_values(monkeypatch, tmp_path, startup_args):
+    from provider_backends.codex.launcher_runtime.command_runtime import service
+    from provider_backends.codex.launcher_runtime.command_runtime.managed_app_server import build_managed_app_server_command
+
+    monkeypatch.setattr(service, '_env_map', lambda *arguments, **keywords: {})
+    state = {'project_root': str(tmp_path)}
+    command = service.build_start_cmd(
+        SimpleNamespace(auto_permission=True, restore=False),
+        SimpleNamespace(role=None, name='codex', restore_default=RestoreMode.AUTO,
+                        startup_args=startup_args, provider_command_template=None),
+        tmp_path, 'launch-id',
+        load_resolved_provider_profile_fn=lambda runtime: None,
+        prepare_codex_home_overrides_fn=lambda *arguments, **keywords: {},
+        provider_start_parts_fn=lambda provider: ['codex'],
+        load_resume_session_id_fn=lambda *arguments, **keywords: None,
+        build_codex_shell_prefix_fn=lambda **keywords: [],
+        supports_managed_app_server_fn=lambda parts: True,
+        build_managed_app_server_command_fn=build_managed_app_server_command,
+        prepared_state=state,
+    )
+    assert state['codex_app_server_enabled'] is True
+    assert '--remote' in command

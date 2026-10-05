@@ -37,6 +37,18 @@ def _init_repo(root: Path) -> None:
     )
 
 
+@pytest.mark.skipif(os.name == 'nt', reason='Windows restricts special directory names')
+@pytest.mark.parametrize('name', ['正常项目', 'project space', 'trailing ', 'line\nbreak', 'carriage\rreturn'])
+def test_registered_worktree_preserves_directory_name(tmp_path, name):
+    project_root = tmp_path / 'repo'
+    _init_repo(project_root)
+    worktree = tmp_path / name
+    subprocess.run(['git', '-C', str(project_root), 'worktree', 'add', '--detach', str(worktree), 'HEAD'],
+                   check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    assert worktree.resolve() in git_worktree_runtime.list_registered_worktrees(project_root)
+    assert git_worktree_runtime.is_registered_worktree(project_root, worktree)
+
+
 def _managed_worktree(tmp_path: Path):
     project_root = tmp_path / 'repo'
     _init_repo(project_root)

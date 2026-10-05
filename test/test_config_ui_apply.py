@@ -19,20 +19,24 @@ def run_apply(body):
         'setConfigApplyStatus', 'pendingAgentRemoval', 'cancelVisualRender',
         'scheduleVisualRender', 'initializeVisualState', 'clone', 'firstLeafPath',
         'extractPercents', 'restorePercents', 'pathKey',
+        'refreshActionControls', 'loadProfile', 'loadActiveConfig', 'saveProfile', 'warnUnsavedDraft',
     ]:
         match = re.search(rf'    (?:async )?function {name}\([^\n]*\) \{{\n.*?\n    \}}', page, re.S)
         assert match is not None, name
         functions.append(match.group(0))
     script = '''
 let draftText = 'saved-model', draftLoaded = true, draftDirty = true, draftRevision = 0;
+let savedDraftRevision = -1;
 let activeConfigDigest = 'before', configApplyInProgress = false;
+let profileSaveInProgress = false, profileLoadInProgress = false, profileLoadRevision = 0;
+let loadedProfileName = 'active', activeDrawerKind = null;
 let visualUndo = [], visualRenderError = null, visualDetached = false;
 let visualRenderPromise = null, visualRenderResolve = null, visualRenderTimer = null, visualRenderRevision = 0;
 let selectedWindowIndex = 0, selectedPanePath = [], visualNormalizationConfirmed = false;
 const nodes = {}, requests = [], apiHandlers = {};
 const document = {getElementById(id) {return nodes[id] ||= {textContent: '', className: '', style: {}, dataset: {}};}};
 const localStorage = {getItem() {return null;}, setItem() {}};
-const window = {location: {protocol: 'http:'}};
+const window = {location: {protocol: 'http:'}, confirm: () => true, prompt: () => 'profile'};
 const originalSetTimeout = setTimeout;
 globalThis.setTimeout = callback => originalSetTimeout(callback, 0);
 function t(key) {return key;}
@@ -41,6 +45,9 @@ function updateDigestBadge() {}
 function renderVisualEditors() {}
 function updateCompactPreviews() {}
 function setVersion() {}
+function templateToml() {return 'template';}
+function openDrawer() {}
+function syncProfileOptions(records, selected) {document.getElementById('profileSelect').value = selected;}
 function syncDocumentFromVisual() {return JSON.parse(JSON.stringify(visualState.document));}
 function setActionStatus(message, failed = false) {
   const status = document.getElementById('actionDetail');
@@ -65,12 +72,13 @@ function savedResult(status = 'saved') {
     dry_run: {plan_class: 'replace_agent'}, reload: {status: 'published'}};
 }
 async function apiJson(path, options) {
-  const body = JSON.parse(options.body);
+  const body = options ? JSON.parse(options.body) : null;
   requests.push({path, body});
   if (apiHandlers[path]) return apiHandlers[path](body);
   if (path === '/api/validate') return {agent_names: ['codex'], editor: editor('saved-model')};
   if (path === '/api/preview') return {changed: true, diff: 'reviewed diff'};
   if (path === '/api/render') return {text: body.document.agents.codex.model, editor: {document: body.document}};
+  if (path === '/api/profile') return {name: body.name, profiles: []};
   return savedResult();
 }
 function state() {
@@ -234,3 +242,175 @@ await new Promise(resolve => originalSetTimeout(resolve, 10));
 console.log(JSON.stringify({draftText, canceled: await oldRender}));
 ''')
     assert result == {'draftText': 'typed-toml', 'canceled': False}
+
+
+def test_profile_load_ignores_late_response_from_previous_selection():
+    result = run_apply('''
+draftDirty = false;
+const firstResponse = deferred(), secondResponse = deferred();
+apiHandlers['/api/profile?name=first'] = () => firstResponse.promise;
+apiHandlers['/api/profile?name=second'] = () => secondResponse.promise;
+const first = loadProfile('first'), second = loadProfile('second');
+secondResponse.resolve({text:'second-model', editor:editor('second-model')}); await second;
+firstResponse.resolve({text:'first-model', editor:editor('first-model')}); await first;
+console.log(JSON.stringify({...state(), selected:nodes.profileSelect.value}));
+''')
+    assert result['model'] == result['draftText'] == 'second-model'
+    assert result['selected'] == 'second'
+
+
+def test_profile_load_preserves_edits_made_during_request():
+    result = run_apply('''
+const response = deferred();
+apiHandlers['/api/profile?name=other'] = () => response.promise;
+const loading = loadProfile('other');
+draftRevision++; draftText = 'typed-model'; draftDirty = true;
+visualState.document.agents.codex.model = draftText;
+visualUndo.push('edit');
+response.resolve({text:'other-model', editor:editor('other-model')}); await loading;
+console.log(JSON.stringify({...state(), selected:nodes.profileSelect.value}));
+''')
+    assert result['model'] == result['draftText'] == 'typed-model'
+    assert result['undoEntries'] == 1
+    assert result['selected'] == 'active'
+    assert result['message'] == 'configLoadSuperseded'
+
+
+def test_canceling_profile_switch_preserves_unsaved_draft():
+    result = run_apply('''
+window.confirm = () => false;
+await loadProfile('other');
+console.log(JSON.stringify({...state(), selected:nodes.profileSelect.value}));
+''')
+    assert result['requests'] == []
+    assert result['selected'] == 'active'
+    assert result['draftText'] == 'saved-model'
+
+
+def test_declining_new_profile_switch_also_cancels_previous_pending_load():
+    result = run_apply('''
+const response = deferred();
+apiHandlers['/api/profile?name=first'] = () => response.promise;
+const loading = loadProfile('first');
+window.confirm = () => false; await loadProfile('second');
+response.resolve({text:'first-model', editor:editor('first-model')}); await loading;
+console.log(JSON.stringify({...state(), selected:nodes.profileSelect.value, loading:profileLoadInProgress}));
+''')
+    assert result['draftText'] == 'saved-model'
+    assert result['selected'] == 'active'
+    assert result['loading'] is False
+
+
+def test_initial_active_config_load_preserves_edits_and_enables_saving():
+    result = run_apply('''
+draftLoaded = false; draftDirty = false;
+const response = deferred();
+apiHandlers['/api/config'] = () => response.promise;
+const loading = loadActiveConfig();
+draftRevision++; draftDirty = true; draftText = 'typed-model';
+visualState.document.agents.codex.model = draftText;
+response.resolve({text:'active-model', digest:'active-digest', editor:editor('active-model')});
+await loading;
+console.log(JSON.stringify({...state(), loaded:draftLoaded}));
+''')
+    assert result['draftText'] == result['model'] == 'typed-model'
+    assert result['loaded'] is True
+    assert result['digest'] == 'active-digest'
+
+
+def test_late_active_config_load_cannot_overwrite_selected_profile():
+    result = run_apply('''
+draftDirty = false;
+const response = deferred();
+apiHandlers['/api/config'] = () => response.promise;
+apiHandlers['/api/profile?name=other'] = () => ({text:'other-model', editor:editor('other-model')});
+const loading = loadActiveConfig();
+await loadProfile('other');
+response.resolve({text:'active-model', digest:'stale-digest', editor:editor('active-model')});
+await loading;
+console.log(JSON.stringify({...state(), selected:nodes.profileSelect.value}));
+''')
+    assert result['draftText'] == 'other-model'
+    assert result['selected'] == 'other'
+    assert result['digest'] == 'before'
+
+
+def test_profile_save_waits_for_latest_visual_render_and_blocks_duplicate_clicks():
+    result = run_apply('''
+scheduleVisualRender();
+const saving = saveProfile();
+visualState.document.agents.codex.model = 'latest-model'; scheduleVisualRender();
+await saveProfile(); await saving;
+console.log(JSON.stringify(state()));
+''')
+    writes = [request for request in result['requests'] if request['path'] == '/api/profile']
+    assert len(writes) == 1
+    assert writes[0]['body']['text'] == 'latest-model'
+
+
+def test_edit_during_profile_save_keeps_new_draft_and_selection():
+    result = run_apply('''
+const arrived = deferred(), response = deferred();
+apiHandlers['/api/profile'] = () => {arrived.resolve(); return response.promise;};
+const saving = saveProfile(); await arrived.promise;
+draftRevision++; draftText = 'new-model'; draftDirty = true;
+visualState.document.agents.codex.model = draftText;
+response.resolve({name:'saved-profile', profiles:[]}); await saving;
+console.log(JSON.stringify({...state(), selected:nodes.profileSelect.value}));
+''')
+    assert result['draftText'] == result['model'] == 'new-model'
+    assert result['selected'] == 'active'
+    assert 'configNewerDraft' in result['message']
+
+
+@pytest.mark.parametrize('dirty', [False, True])
+def test_page_exit_warns_only_for_unsaved_draft(dirty):
+    result = run_apply('''
+draftDirty = ''' + json.dumps(dirty) + ''';
+const event = {preventDefault() {this.prevented = true;}};
+warnUnsavedDraft(event);
+console.log(JSON.stringify({prevented:Boolean(event.prevented)}));
+''')
+    assert result['prevented'] is dirty
+
+
+def test_loading_saved_profile_does_not_warn_until_it_is_edited():
+    result = run_apply('''
+apiHandlers['/api/profile?name=other'] = () => ({text:'other-model', editor:editor('other-model')});
+await loadProfile('other');
+const loadedEvent = {preventDefault() {this.prevented = true;}};
+warnUnsavedDraft(loadedEvent);
+scheduleVisualRender();
+const editedEvent = {preventDefault() {this.prevented = true;}};
+warnUnsavedDraft(editedEvent);
+console.log(JSON.stringify({loaded:Boolean(loadedEvent.prevented), edited:Boolean(editedEvent.prevented)}));
+''')
+    assert result == {'loaded': False, 'edited': True}
+
+
+def test_saved_profile_switch_does_not_prompt_to_discard_saved_content():
+    result = run_apply('''
+apiHandlers['/api/profile?name=first'] = () => ({text:'first-model', editor:editor('first-model')});
+apiHandlers['/api/profile?name=second'] = () => ({text:'second-model', editor:editor('second-model')});
+await loadProfile('first');
+window.confirm = () => false;
+await loadProfile('second');
+console.log(JSON.stringify(state()));
+''')
+    assert result['draftText'] == 'second-model'
+
+
+@pytest.mark.parametrize('edit_during_save', [False, True])
+def test_saving_profile_clears_exit_warning_only_for_the_saved_draft(edit_during_save):
+    result = run_apply('''
+const arrived = deferred(), response = deferred();
+apiHandlers['/api/profile'] = () => {arrived.resolve(); return response.promise;};
+const saving = saveProfile(); await arrived.promise;
+if (''' + json.dumps(edit_during_save) + ''') {draftRevision++; draftText = 'new-model';}
+response.resolve({name:'saved-profile', profiles:[]}); await saving;
+const event = {preventDefault() {this.prevented = true;}};
+warnUnsavedDraft(event);
+console.log(JSON.stringify({...state(), warned:Boolean(event.prevented)}));
+''')
+    assert result['warned'] is edit_during_save
+    assert result['draftDirty'] is True

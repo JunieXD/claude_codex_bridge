@@ -14,6 +14,10 @@ from .socket_client_runtime import (
     send_request,
 )
 
+_READ_ONLY_OPS = frozenset({
+    'get', 'watch', 'queue', 'trace', 'inbox', 'mailbox_head', 'ping', 'project_view',
+})
+
 
 class CcbdClient:
     def __init__(self, socket_path: str | Path, *, timeout_s: float | None = None) -> None:
@@ -27,18 +31,21 @@ class CcbdClient:
         req = RpcRequest(op=op, request=payload or {})
         try:
             sock = connect_socket(self._socket_path, timeout_s=self._timeout_s)
-        except OSError as exc:
-            raise CcbdClientError(str(exc)) from exc
+        except (OSError, CcbdClientError) as exc:
+            raise CcbdClientError(str(exc), retry_safe=True) from exc
         try:
             send_request(sock, req)
             raw = recv_response_line(sock)
-        except OSError as exc:
-            raise CcbdClientError(str(exc)) from exc
+        except (OSError, CcbdClientError) as exc:
+            raise _delivery_error(op, str(exc)) from exc
         finally:
             sock.close()
         if not raw:
-            raise CcbdClientError('empty response from ccbd')
-        response = decode_response(raw)
+            raise _delivery_error(op, 'empty response from ccbd')
+        try:
+            response = decode_response(raw)
+        except (ValueError, UnicodeError, TypeError) as exc:
+            raise _delivery_error(op, 'invalid response from ccbd') from exc
         if not response.ok:
             raise CcbdClientError(response.error or 'ccbd request failed')
         return response.payload
@@ -50,6 +57,16 @@ class CcbdClient:
         call = bind_endpoint(self, name=name, endpoint=endpoint)
         object.__setattr__(self, name, call)
         return call
+
+
+def _delivery_error(op: str, message: str) -> CcbdClientError:
+    retry_safe = op in _READ_ONLY_OPS
+    if not retry_safe:
+        message = (
+            f'{op} result is unknown: {message}. The request was not replayed; '
+            'check `ccb queue all` or `ccb get <job_id>` before retrying.'
+        )
+    return CcbdClientError(message, retry_safe=retry_safe)
 
 
 def _resolve_timeout(explicit: float | None) -> float:

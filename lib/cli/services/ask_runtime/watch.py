@@ -5,6 +5,7 @@ from typing import TextIO
 
 from cli.services.watch import WatchEventBatch
 from cli.services.watch_fallback import load_persisted_terminal_watch_payload
+from cli.services.watch_runtime import initial_watch_connection_retryable
 
 
 def watch_ask_job(
@@ -28,15 +29,34 @@ def watch_ask_job(
     poll_interval = poll_interval_seconds_fn()
     try:
         handle = connect_mounted_daemon_fn(context, allow_restart_stale=False)
-    except reconnect_error_classes:
+    except reconnect_error_classes as exc:
         fallback = _persisted_terminal_batch(context, job_id, cursor=cursor)
         if fallback is not None:
             if emit_output:
                 write_lines_fn(out, render_watch_batch_fn(fallback))
             return fallback
-        raise
-    assert handle.client is not None
-    client = handle.client
+        if not initial_watch_connection_retryable(exc):
+            raise
+        initial_deadline = monotonic_fn() + 10.0
+        if deadline is not None:
+            initial_deadline = min(initial_deadline, deadline)
+        client = _connect_client(
+            context, job_id=job_id, cursor=cursor,
+            connect_mounted_daemon_fn=connect_mounted_daemon_fn,
+            reconnect_error_classes=reconnect_error_classes,
+            monotonic_fn=monotonic_fn, sleep_fn=sleep_fn,
+            deadline=initial_deadline, poll_interval=poll_interval, initial=True,
+        )
+        if client is None:
+            fallback = _persisted_terminal_batch(context, job_id, cursor=cursor)
+            if fallback is not None:
+                if emit_output:
+                    write_lines_fn(out, render_watch_batch_fn(fallback))
+                return fallback
+            raise RuntimeError(f'watch connection timed out for {job_id}') from exc
+    else:
+        assert handle.client is not None
+        client = handle.client
 
     while True:
         try:
@@ -131,16 +151,19 @@ def _connect_client(
     sleep_fn: Callable[[float], None],
     deadline: float | None,
     poll_interval: float,
+    initial: bool = False,
 ):
     while True:
         if _deadline_exceeded(deadline, monotonic_fn=monotonic_fn):
             return None
         try:
             handle = connect_mounted_daemon_fn(context, allow_restart_stale=False)
-        except reconnect_error_classes:
+        except reconnect_error_classes as exc:
             fallback = _persisted_terminal_batch(context, job_id, cursor=cursor)
             if fallback is not None:
                 return None
+            if initial and not initial_watch_connection_retryable(exc):
+                raise
             sleep_fn(poll_interval)
             continue
         assert handle.client is not None

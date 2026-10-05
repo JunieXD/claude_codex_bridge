@@ -34,6 +34,13 @@ def default_watch_poll_interval_seconds() -> float:
     return _DEFAULT_POLL_INTERVAL_S
 
 
+def initial_watch_connection_retryable(error: BaseException) -> bool:
+    return bool(
+        getattr(error, 'retry_safe', False)
+        or str(error).startswith(('project ccbd is starting', 'ccbd is unavailable:'))
+    )
+
+
 def watch_target(
     context,
     command,
@@ -49,12 +56,29 @@ def watch_target(
     deadline = _watch_deadline(timeout_seconds_fn(), time_fn=time_fn)
     try:
         handle = connect_mounted_daemon_fn(context, allow_restart_stale=False)
-    except reconnect_error_classes:
+    except reconnect_error_classes as exc:
         fallback = _persisted_terminal_batch(context, command.target, cursor=cursor)
         if fallback is not None:
             yield fallback
             return
-        raise
+        if not initial_watch_connection_retryable(exc):
+            raise
+        initial_deadline = time_fn() + 10.0
+        if deadline is not None:
+            initial_deadline = min(initial_deadline, deadline)
+        handle = _connect_handle(
+            context, target=command.target, cursor=cursor,
+            connect_mounted_daemon_fn=connect_mounted_daemon_fn,
+            reconnect_error_classes=reconnect_error_classes,
+            time_fn=time_fn, sleep_fn=sleep_fn, deadline=initial_deadline,
+            poll_interval_seconds_fn=poll_interval_seconds_fn, initial=True,
+        )
+        if handle is None:
+            fallback = _persisted_terminal_batch(context, command.target, cursor=cursor)
+            if fallback is not None:
+                yield fallback
+                return
+            raise RuntimeError(f'watch connection timed out for target {command.target}') from exc
     assert handle.client is not None
     poll_interval = poll_interval_seconds_fn()
 
@@ -145,6 +169,7 @@ def _connect_handle(
     sleep_fn,
     deadline: float | None,
     poll_interval_seconds_fn,
+    initial: bool = False,
 ):
     poll_interval = poll_interval_seconds_fn()
     while True:
@@ -152,10 +177,12 @@ def _connect_handle(
             return None
         try:
             handle = connect_mounted_daemon_fn(context, allow_restart_stale=False)
-        except reconnect_error_classes:
+        except reconnect_error_classes as exc:
             fallback = _persisted_terminal_batch(context, target, cursor=cursor)
             if fallback is not None:
                 return None
+            if initial and not initial_watch_connection_retryable(exc):
+                raise
             sleep_fn(poll_interval)
             continue
         assert handle.client is not None
@@ -173,5 +200,6 @@ __all__ = [
     "WatchEventBatch",
     "default_watch_poll_interval_seconds",
     "default_watch_timeout_seconds",
+    "initial_watch_connection_retryable",
     "watch_target",
 ]

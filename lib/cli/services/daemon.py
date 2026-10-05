@@ -175,6 +175,8 @@ def invoke_mounted_daemon(
         normalized = _normalize_request_failure(context)
         if normalized is not None:
             raise normalized from exc
+        if not exc.retry_safe:
+            raise
         handle = connect(context)
         assert handle.client is not None
         return request_fn(handle.client)
