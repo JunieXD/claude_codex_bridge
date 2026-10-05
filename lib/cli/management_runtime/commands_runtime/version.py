@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 
 from ..install import find_install_dir
 from ..versioning import format_version_info, get_available_versions, get_remote_version_info, get_version_info
+from ..source_update import source_update_status
 from .matching import is_newer_version, latest_version
 
 
@@ -31,7 +33,7 @@ def cmd_version(args, *, script_root: Path) -> int:
 
     print("\nChecking for updates...")
     if _is_source_install(local_info=local_info, install_dir=install_dir):
-        _print_source_update_status(local_info)
+        _print_source_update_status(install_dir)
     elif (install_dir / ".git").exists():
         _print_git_update_status(local_info)
     else:
@@ -47,25 +49,24 @@ def _is_source_install(*, local_info: dict[str, object], install_dir: Path) -> b
     return (install_dir / ".git").exists()
 
 
-def _print_source_update_status(local_info: dict[str, object]) -> None:
-    remote_info = get_remote_version_info()
-    if remote_info is None:
-        print("⚠️  Unable to check source updates (network error)")
-        print("   Run: ccb update  to install the latest stable release")
+def _print_source_update_status(install_dir: Path) -> None:
+    try:
+        status = source_update_status(install_dir)
+    except (ValueError, OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+        print(f'⚠️  Unable to check Fork source updates: {str(error).strip()[:300]}')
+        print('   Check origin, branch, and network; this source install will not switch to an official release.')
         return
-    if local_info.get("commit") and remote_info.get("commit"):
-        if local_info["commit"] == remote_info["commit"]:
-            print("✅ Up to date")
-            print("   Run: ccb update  to switch this install to the latest stable release")
-            return
-        remote_str = f"{remote_info['commit']} {remote_info.get('date', '')}".strip()
-        print(f"📦 Source update available: {remote_str}")
-        print("   Use: git pull  (or switch commits in your checkout)")
-        print("   Rerun: ./install.sh install  if you want the global install to stay in source/dev mode")
-        print("   Run: ccb update  to switch the global install to the latest stable release")
-        return
-    print("⚠️  Unable to compare source revisions")
-    print("   Run: ccb update  to install the latest stable release")
+    print(f'   Source: {status["repository"]}, branch {status["branch"]}')
+    if status['state'] == 'current':
+        print('✅ Fork source is up to date')
+    elif status['state'] == 'behind':
+        print(f'📦 Source update available: {status["behind"]} commit(s) behind origin')
+        print('   Finish work and exit source CCB projects, then run: ccb update')
+    elif status['state'] == 'ahead':
+        print(f'ℹ️  Local source is {status["ahead"]} commit(s) ahead of origin; no update is needed.')
+    else:
+        print(f'⚠️  Source has diverged: {status["ahead"]} local, {status["behind"]} remote commit(s).')
+        print('   Reconcile your Git history manually; ccb update will refuse a non-fast-forward.')
 
 
 def _print_git_update_status(local_info: dict[str, object]) -> None:
