@@ -135,13 +135,18 @@ scope, upgrade guidance and the Codex remote-session recovery limitation.
 
 ## How to Install
 
+**JunieXD Fork:** use a source checkout for local fixes. Source-mode `ccb update`
+fast-forwards this Fork's `origin` branch without installing an official release
+or restarting agents. See [Fork maintenance](docs/fork-maintenance.md) before
+switching an existing npm installation or merging upstream changes.
+
 Install or update an npm-managed CCB with npm:
 
 ```bash
 npm install -g @seemseam/ccb@latest
 ```
 
-For GitHub release-package or source installs, use CCB's transactional updater:
+For GitHub release-package installs, use CCB's transactional updater:
 
 ```bash
 ccb update

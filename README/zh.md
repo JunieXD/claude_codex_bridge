@@ -121,13 +121,17 @@ safe 和 rich 两套配置行为一致。macOS 使用 `open`；Linux 优先使�
 
 ## 如何安装
 
+**JunieXD Fork：** 自定义修复使用源码安装维护。源码模式的 `ccb update` 只快进更新本 Fork 的
+`origin` 分支，不安装官方 release，也不重启 Agent。切换现有 npm 安装或合并上游前，
+请先阅读 [Fork 维护说明](../docs/fork-maintenance.md)。
+
 通过 npm 管理的 CCB 应继续使用 npm 安装或更新：
 
 ```bash
 npm install -g @seemseam/ccb@latest
 ```
 
-通过 GitHub release 包或源码安装时，使用 CCB 自带的事务 updater：
+通过 GitHub release 包安装时，使用 CCB 自带的事务 updater：
 
 ```bash
 ccb update

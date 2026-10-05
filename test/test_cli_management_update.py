@@ -223,57 +223,28 @@ def test_cmd_update_windows_uses_release_surface_diagnostic(monkeypatch, tmp_pat
     assert "Use install.ps1 from a validated Windows release ZIP or source checkout" in output
 
 
-def test_cmd_update_allows_source_dev_install_and_targets_managed_prefix(monkeypatch, tmp_path: Path, capsys) -> None:
+def test_cmd_update_routes_source_to_fork_without_release_install(monkeypatch, tmp_path: Path) -> None:
     source_dir = tmp_path / "source-install"
     source_dir.mkdir()
     (source_dir / "install.sh").write_text("#!/usr/bin/env bash\n", encoding="utf-8")
     (source_dir / ".git").mkdir()
-    managed_prefix = tmp_path / "managed-install"
     monkeypatch.setattr(update_runtime.platform, "system", lambda: "Linux")
-    monkeypatch.setenv("CODEX_INSTALL_PREFIX", str(managed_prefix))
-    monkeypatch.setattr(update_runtime, "pick_temp_base_dir", lambda _install_dir: tmp_path / "tmp-base")
-    monkeypatch.setattr(update_runtime, "_resolve_latest_release_version", lambda: "6.0.12")
-    calls: dict[str, object] = {}
+    calls = []
 
-    def _fake_update_via_tarball(
-        tmp_base_arg,
-        *,
-        install_dir,
-        target_version,
-        old_info,
-        provider_mode,
-        cache_cleanup_enabled,
-    ):
-        calls["tmp_base"] = tmp_base_arg
-        calls["install_dir"] = install_dir
-        calls["target_version"] = target_version
-        calls["old_info"] = old_info
-        calls["provider_mode"] = provider_mode
-        calls["cache_cleanup_enabled"] = cache_cleanup_enabled
+    def update_source(args, *, script_root):
+        calls.append((args.target, script_root))
         return 0
 
-    monkeypatch.setattr(update_runtime, "_update_via_tarball", _fake_update_via_tarball)
+    monkeypatch.setattr(update_runtime, "update_source_from_fork", update_source)
     monkeypatch.setattr(
-        update_runtime,
-        "get_version_info",
-        lambda install_dir: {
-            "install_mode": "source" if install_dir == source_dir else "release",
-            "source_kind": "source" if install_dir == source_dir else "release",
-            "version": "6.0.11",
-        },
+        update_runtime, "resolve_managed_install_dir",
+        lambda **kwargs: pytest.fail('Source updates must not target the release prefix'),
     )
 
     code = update_runtime.cmd_update(SimpleNamespace(target=None), script_root=source_dir)
 
     assert code == 0
-    captured = capsys.readouterr()
-    assert "source/dev checkout" in captured.out
-    assert "Global `ccb` links now target the release install" in captured.out
-    assert calls["install_dir"] == managed_prefix
-    assert calls["target_version"] == "6.0.12"
-    assert calls["old_info"]["install_mode"] == "source"
-    assert calls["provider_mode"] == "prompt"
-    assert calls["cache_cleanup_enabled"] is True
+    assert calls == [(None, source_dir)]
 
 
 def test_release_artifact_name_uses_linux_arch_aliases(monkeypatch) -> None:

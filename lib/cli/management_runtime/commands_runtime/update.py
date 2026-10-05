@@ -47,6 +47,7 @@ from ..install import (
 )
 from ..provider_cache_cleanup import run_post_update_provider_cache_cleanup
 from ..provider_updates import run_provider_update_flow
+from ..source_update import update_source_from_fork
 from ..versioning import REPO_URL, format_version_info, get_available_versions, get_version_info
 from .matching import find_matching_version, latest_version
 
@@ -85,7 +86,8 @@ def cmd_update(args, *, script_root: Path) -> int:
     if not supported:
         print(reason)
         return 1
-    source_repo_install = is_source_repo_root(script_root)
+    if is_source_repo_root(script_root):
+        return update_source_from_fork(args, script_root=script_root)
     install_dir = resolve_managed_install_dir(script_root=script_root)
 
     target_version = _resolve_target_version(args)
@@ -98,28 +100,20 @@ def cmd_update(args, *, script_root: Path) -> int:
         print(f"   Run: {command}")
         return 0
 
-    current_install_root = script_root if source_repo_install else install_dir
-    old_info = get_version_info(current_install_root)
+    old_info = get_version_info(install_dir)
     provider_mode = _provider_update_mode(args)
     cache_cleanup_enabled = _cache_cleanup_enabled(args)
     if target_version:
-        if source_repo_install:
-            print(f"🔄 Installing release v{target_version} from source/dev checkout...")
-        else:
-            print(f"🔄 Updating to v{target_version}...")
+        print(f"🔄 Updating to v{target_version}...")
     else:
-        if source_repo_install:
-            print("🔄 Checking latest stable release for source/dev checkout...")
-        else:
-            print("🔄 Checking for release updates...")
+        print("🔄 Checking for release updates...")
 
     resolved_target = target_version or _resolve_latest_release_version()
     if not resolved_target:
         print("❌ Could not determine latest release version")
         return 1
     if (
-        not source_repo_install
-        and not target_version
+        not target_version
         and _identity_value(old_info, "version") == resolved_target
     ):
         _print_update_outcome(old_info, old_info)
@@ -140,9 +134,6 @@ def cmd_update(args, *, script_root: Path) -> int:
     )
     if code != 0:
         return code
-    if source_repo_install:
-        print(f"ℹ️  Global `ccb` links now target the release install at: {install_dir}")
-        print("   `./ccb` inside the source checkout still runs the live source tree.")
     return 0
 
 
