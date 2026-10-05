@@ -163,6 +163,10 @@ pub struct AgentView {
     pub reload_drain: Option<ReloadDrainView>,
     #[serde(default)]
     pub dispatch_blocked_by_reload_drain: bool,
+    #[serde(default)]
+    pub task_status_label: Option<String>,
+    #[serde(default)]
+    pub task_status_warning: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, Default, PartialEq)]

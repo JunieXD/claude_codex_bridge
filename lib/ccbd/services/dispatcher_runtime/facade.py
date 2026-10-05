@@ -6,6 +6,7 @@ from agents.models import AgentState, AgentValidationError
 from completion.tracker import CompletionTrackerView
 from execution_phase import derive_execution_phase, execution_phase_evidence_from_records
 from message_bureau.reply_payloads import reply_id_from_payload
+from task_presentation import task_presentation
 
 from .completion import apply_tracker_view, merge_terminal_decision
 from .lifecycle import resubmit_message, retry_attempt
@@ -143,6 +144,7 @@ class DispatcherFacadeMixin:
             wait = snapshot(agent.get('agent_name', ''), queued[0])
             if wait:
                 agent['delivery_wait'] = wait
+        agent.update(task_presentation(agent))
         return agent
 
     def _queue_execution_phase(self, agent: dict) -> dict[str, object]:

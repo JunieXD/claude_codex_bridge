@@ -80,6 +80,7 @@ class ExecutionService(ExecutionServiceStateMixin):
         return {'job_id': job_id, 'reason': guard.reason,
                 'wait_seconds': WAIT_SECONDS,
                 'elapsed_seconds': max(0.0, guard.clock() - guard.since) if guard.since is not None else None,
+                'blocked_seconds': max(0.0, guard.clock() - guard.wait_started_at) if guard.wait_started_at is not None else None,
                 'clear_attempted': guard.clear_attempted}
 
     def start(self, job: JobRecord, *, runtime_context: ProviderRuntimeContext | None = None) -> ProviderSubmission | None:

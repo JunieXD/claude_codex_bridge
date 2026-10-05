@@ -44,6 +44,9 @@ def test_queue_explains_unknown_and_recovers_same_job_without_timeout_clear(tmp_
     assert payload['agent']['delivery_wait']['job_id'] == first.job_id
     assert payload['agent']['delivery_wait']['reason'] == 'unknown'
     assert payload['agent']['delivery_wait']['elapsed_seconds'] is None
+    assert payload['agent']['delivery_wait']['blocked_seconds'] == 3600
+    assert payload['agent']['task_status'] == 'input_unrecognized'
+    assert payload['agent']['task_status_warning'] is True
     assert 'reason=unknown' in '\n'.join(render_queue(payload))
     assert not execution.started and target.clear_count == 0
     target.state = 'empty'

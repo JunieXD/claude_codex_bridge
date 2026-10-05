@@ -1525,6 +1525,31 @@ pub(crate) fn agent_row_spans(agent: &AgentView, theme: SidebarTheme) -> Vec<Spa
     ];
     if auth_blocked {
         spans.push(Span::styled(" [login]", Style::default().fg(theme.danger)));
+    } else if !draining
+        && let Some(label) = agent
+            .task_status_label
+            .as_deref()
+            .filter(|label| *label != "idle")
+    {
+        let short_label = match label {
+            "input-unknown" => "input?",
+            "wait-provider" => "busy",
+            "wait-start" => "starting",
+            "wait-result" => "finishing",
+            "result-queued" => "reply-wait",
+            "result-sending" => "replying",
+            "returned" => "done",
+            other => other,
+        };
+        let suffix = if agent.task_status_warning { "!" } else { "" };
+        spans.push(Span::styled(
+            format!(" [{short_label}{suffix}]"),
+            Style::default().fg(if agent.task_status_warning {
+                theme.warning
+            } else {
+                theme.muted
+            }),
+        ));
     } else {
         spans.push(Span::raw(format!(" [{}]", provider_display_name)));
     }
@@ -2402,6 +2427,19 @@ mod tests {
         let rendered = terminal.backend().to_string();
         assert!(rendered.contains("◐  agent2 [claude] drain:waiting"));
         assert!(!rendered.contains("●  agent2 [claude]"));
+    }
+
+    #[test]
+    fn renders_task_status_and_unknown_input_warning() {
+        let mut response = sample_response();
+        response.view.agents[0].task_status_label = Some("input-unknown".into());
+        response.view.agents[0].task_status_warning = true;
+        let mut app = SidebarApp::new("main".into());
+        app.apply_response(response);
+        let backend = TestBackend::new(24, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        terminal.draw(|frame| draw(frame, &app)).unwrap();
+        assert!(terminal.backend().to_string().contains("[input?!]"));
     }
 
     #[test]
@@ -4045,7 +4083,10 @@ mod tests {
             Some("job_7deaebaf8043"),
         );
         let text = spans_text(&agent_row_spans(&agent, SidebarTheme::default_dark()));
-        assert!(text.contains("·3"), "should include queue depth, got: {text}");
+        assert!(
+            text.contains("·3"),
+            "should include queue depth, got: {text}"
+        );
         assert!(
             text.contains("#8043"),
             "should include active jobid short, got: {text}"

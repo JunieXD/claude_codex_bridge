@@ -21,12 +21,17 @@ class DraftGuard:
     since: float | None = None
     clear_attempted: bool = False
     reason: str = 'unobserved'
+    wait_started_at: float | None = None
 
     def reset(self, reason: str) -> None:
+        if self.wait_started_at is None:
+            self.wait_started_at = self.clock()
         self.since = None
         self.reason = reason
 
     def allows(self, target: 'DraftTarget') -> bool:
+        if self.wait_started_at is None:
+            self.wait_started_at = self.clock()
         observation = target.observe()
         if observation.state not in {'empty', 'nonempty'}:
             self.reset(observation.reason)
@@ -37,6 +42,7 @@ class DraftGuard:
             self.clear_attempted = False
         self.reason = observation.reason
         if observation.state == 'empty':
+            self.wait_started_at = None
             self.since = None
             self.clear_attempted = False
             return True
@@ -66,6 +72,7 @@ class DraftGuard:
         # never send another clear just because the first readback is delayed.
         after = target.observe()
         if after.binding == self.binding and after.state == 'empty':
+            self.wait_started_at = None
             self.since = None
             self.clear_attempted = False
             self.reason = 'cleared'

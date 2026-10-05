@@ -37,6 +37,7 @@ def render_queue(payload: Mapping[str, object]) -> tuple[str, ...]:
                 f'depth={agent["queue_depth"]} pending_replies={agent["pending_reply_count"]} '
                 f'summary_status={agent.get("summary_status")} '
                 f'delivery_wait={(agent.get("delivery_wait") or {}).get("reason")}'
+                f' task_status={agent.get("task_status")}'
             )
         return tuple(lines)
 
@@ -44,6 +45,8 @@ def render_queue(payload: Mapping[str, object]) -> tuple[str, ...]:
     lines.extend(
         [
             f'agent_name: {agent.get("agent_name")}',
+            f'task_status: {agent.get("task_status")}',
+            f'task_status_warning: {agent.get("task_status_warning", False)}',
             f'mailbox_id: {agent.get("mailbox_id")}',
             f'summary_status: {agent.get("summary_status")}',
             f'execution_phase: {agent.get("execution_phase") or agent.get("mailbox_state")}',
@@ -59,6 +62,8 @@ def render_queue(payload: Mapping[str, object]) -> tuple[str, ...]:
             f'last_inbound_finished_at: {agent.get("last_inbound_finished_at")}',
         ]
     )
+    if agent.get('task_status_notice'):
+        lines.append(f'task_status_notice: {agent["task_status_notice"]}')
     wait = agent.get('delivery_wait')
     if isinstance(wait, Mapping):
         lines.append(f'delivery_wait: job={wait.get("job_id")} reason={wait.get("reason")} '

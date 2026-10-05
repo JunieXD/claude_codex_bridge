@@ -50,6 +50,7 @@ from provider_control import provider_restart_pending_agents, read_provider_runt
 from provider_model_shortcuts import supported_provider_model_shortcuts
 from provider_thinking_shortcuts import provider_thinking_levels
 from storage.paths import PathLayout
+from task_presentation import task_presentation
 
 from .activity import (
     AgentActivityFacts,
@@ -679,6 +680,21 @@ def build_project_view(
         for order, agent_name in enumerate(_agent_order(deps.config))
     ]
 
+    comms = _comms_view(
+        deps, context=context, active_jobs=active_jobs,
+        queued_jobs=queued_jobs, generated_at=generated_at,
+    )
+    _present_agent_tasks(agents, comms, deps.dispatcher)
+    namespace_view = _namespace_view(
+        config=deps.config, sidebar_view_result=_current_sidebar_view(deps),
+        namespace=namespace, focus=focus,
+    )
+    warnings = [
+        f'{agent["name"]}: inspect pane; do not resend.'
+        for agent in agents if agent.get('task_status_warning')
+    ]
+    tips = namespace_view['sidebar']['view'].get('tips', [])
+    namespace_view['sidebar']['view']['tips'] = warnings + tips
     return {
         'schema_version': PROJECT_VIEW_SCHEMA_VERSION,
         'generated_at': generated_at,
@@ -688,23 +704,29 @@ def build_project_view(
             'display_name': deps.project_root.name,
         },
         'ccbd': _ccbd_view(lease),
-        'namespace': _namespace_view(
-            config=deps.config,
-            sidebar_view_result=_current_sidebar_view(deps),
-            namespace=namespace,
-            focus=focus,
-        ),
+        'namespace': namespace_view,
         'windows': _window_views(config=deps.config, focus=focus, tmux_snapshot=tmux_snapshot),
         'agents': agents,
         'reload_drains': reload_drains,
-        'comms': _comms_view(
-            deps,
-            context=context,
-            active_jobs=active_jobs,
-            queued_jobs=queued_jobs,
-            generated_at=generated_at,
-        ),
+        'comms': comms,
     }
+
+
+def _present_agent_tasks(agents: list, comms: list, dispatcher) -> None:
+    snapshot = getattr(getattr(dispatcher, '_execution_service', None), 'draft_wait_snapshot', None)
+    for agent in agents:
+        job_id = agent.get('current_job_id')
+        comm = next((item for item in comms if item['id'] == job_id), None)
+        if comm is None and job_id is None and agent.get('activity_state') == 'idle':
+            comm = next((item for item in comms if item.get('target') == agent['name']), None)
+        wait = snapshot(agent['name'], job_id) if job_id and callable(snapshot) else {}
+        if wait:
+            agent['delivery_wait'] = wait
+        evidence = {**(comm or {}), **agent}
+        if comm:
+            agent['execution_phase'] = comm.get('execution_phase')
+            agent['execution_phase_reason'] = comm.get('execution_phase_reason')
+        agent.update(task_presentation(evidence))
 
 
 def _dispatcher_project_view_revision(dispatcher: object | None) -> int:
@@ -937,6 +959,7 @@ def _agent_view(
         'pane_id': getattr(runtime, 'pane_id', None) if runtime is not None else None,
         'active': bool(active),
         'queue_depth': queue_depth,
+        'current_job_status': job.status.value if job is not None else None,
         **activity.to_record(),
         'chain_waiting_child_job_id': callback_wait.child_job_id if callback_wait is not None else None,
         'chain_waiting_child_agent': chain_child_agent,
