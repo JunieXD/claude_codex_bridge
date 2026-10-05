@@ -1820,6 +1820,7 @@ model = "gpt-5.5"</pre>
         piModelSourceSupported: "Model source: Pi local models.",
         piModelSourceEmpty: "No configured Pi models were found. An existing selection is preserved.",
         thinkingLevelsTitle: "Model supports: {levels}.",
+        thinkingCustomTitle: "Manual provider levels: {levels}. Verify support with your custom model endpoint.",
         thinkingUnavailableTitle: "The selected provider or model has no writable static thinking mapping.",
         activationBlocked: "Activation blocked",
         activate: "Activate",
@@ -2095,6 +2096,7 @@ model = "gpt-5.5"</pre>
         piModelSourceSupported: "模型来源：Pi 本地模型配置。",
         piModelSourceEmpty: "未找到已配置的 Pi 模型；已有选择会被保留。",
         thinkingLevelsTitle: "模型支持：{levels}。",
+        thinkingCustomTitle: "手动设置 provider 思考等级：{levels}。请确认自定义模型接口支持该等级。",
         thinkingUnavailableTitle: "当前 provider 或模型没有可写入的静态 thinking 映射。",
         activationBlocked: "禁止激活",
         activate: "激活",
@@ -2213,7 +2215,9 @@ model = "gpt-5.5"</pre>
           model_source: "ccb_catalog_fallback",
           custom_model: true,
           static_thinking: true,
+          thinking_options: ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"],
           models: [
+            { id: "gpt-6.1-sol", label: "GPT-6.1 Sol", reasoning_levels: ["low", "medium", "high", "xhigh", "max", "ultra"], default_reasoning_level: "low" },
             { id: "gpt-6-astra", label: "GPT-6 Astra", reasoning_levels: ["low", "medium", "high", "xhigh", "max"], default_reasoning_level: "low" },
             { id: "gpt-5.6-sol", label: "GPT-5.6 SOL", reasoning_levels: ["low", "medium", "high", "xhigh", "max", "ultra"] },
             { id: "gpt-5.6-terra", label: "GPT-5.6 Terra", reasoning_levels: ["low", "medium", "high", "xhigh", "max", "ultra"] },
@@ -3271,10 +3275,7 @@ main = "demo:codex"
         if (value === "__custom__") value = String(window.prompt(t("customModel"), "") || "").trim();
         setOverlayField(leaf.name, "model", value);
         const capability = providerCapability(leaf.provider);
-        const selectedModel = capability && capability.models.find((item) => item.id === value);
-        const levels = selectedModel && Array.isArray(selectedModel.reasoning_levels)
-          ? selectedModel.reasoning_levels
-          : [];
+        const levels = thinkingLevels(capability, value);
         if (!levels.includes(overlayFor(leaf.name).thinking)) {
           setOverlayField(leaf.name, "thinking", null);
         }
@@ -3667,18 +3668,26 @@ main = "demo:codex"
       return node;
     }
 
+    function thinkingLevels(capability, modelId) {
+      if (!capability || !capability.static_thinking || !modelId || modelId === "inherit") return [];
+      const model = capability.models.find((item) => item.id === modelId);
+      if (model) return Array.isArray(model.reasoning_levels) ? model.reasoning_levels : [];
+      return capability.custom_model && Array.isArray(capability.thinking_options)
+        ? capability.thinking_options : [];
+    }
+
     function syncThinking(inspector, capability, modelId) {
       const thinking = inspector.querySelector(".thinking-select");
       if (!thinking) return;
       const model = capability && capability.models.find((item) => item.id === modelId);
-      const levels = model && Array.isArray(model.reasoning_levels) ? model.reasoning_levels : [];
+      const levels = thinkingLevels(capability, modelId);
       const selected = thinking.dataset.current || "inherit";
       thinking.replaceChildren(option("inherit", t("inherit"), selected === "inherit"));
       levels.forEach((level) => thinking.append(option(level, level, selected === level)));
       thinking.value = levels.includes(selected) ? selected : "inherit";
-      thinking.disabled = !capability || !capability.static_thinking || !model || !levels.length;
+      thinking.disabled = !levels.length;
       thinking.title = levels.length
-        ? tf("thinkingLevelsTitle", { levels: levels.join(", ") })
+        ? tf(model ? "thinkingLevelsTitle" : "thinkingCustomTitle", { levels: levels.join(", ") })
         : t("thinkingUnavailableTitle");
     }
 

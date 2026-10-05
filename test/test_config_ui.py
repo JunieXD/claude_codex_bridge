@@ -1555,7 +1555,7 @@ def test_config_ui_provider_capabilities_use_current_safe_model_sources(tmp_path
     )
     providers = {provider['id']: provider for provider in payload['providers']}
 
-    assert [model['id'] for model in providers['codex']['models']] == ['gpt-5.6-sol', 'gpt-5.5']
+    assert [model['id'] for model in providers['codex']['models']] == ['gpt-5.6-sol', 'gpt-5.5', 'gpt-5.4']
     assert providers['codex']['models'][0]['reasoning_levels'] == ['low', 'medium', 'ultra']
     assert providers['codex']['models'][0]['default_reasoning_level'] == 'low'
     assert {model['id'] for model in providers['claude']['models']} >= {
@@ -1703,13 +1703,15 @@ def test_config_ui_codex_fallback_includes_astra_and_keeps_56_family_and_55(tmp_
 
     assert codex['model_source'] == 'ccb_catalog_fallback'
     assert [model['id'] for model in codex['models']] == [
+        'gpt-6.1-sol',
         'gpt-6-astra',
         'gpt-5.6-sol',
         'gpt-5.6-terra',
         'gpt-5.6-luna',
         'gpt-5.5',
     ]
-    assert codex['models'][0]['reasoning_levels'] == ['low', 'medium', 'high', 'xhigh', 'max']
+    assert codex['models'][0]['reasoning_levels'] == ['low', 'medium', 'high', 'xhigh', 'max', 'ultra']
+    assert codex['models'][1]['reasoning_levels'] == ['low', 'medium', 'high', 'xhigh', 'max']
     assert codex['models'][0]['default_reasoning_level'] == 'low'
 
 

@@ -504,6 +504,7 @@ def config_ui_provider_capabilities(
                 'models': suggestions.get(provider, []),
                 'custom_model': model_shortcut and provider != 'pi',
                 'static_thinking': bool(provider_thinking_levels(provider)),
+                'thinking_options': list(provider_thinking_levels(provider)),
             }
         )
     role_rows = _config_ui_role_catalog() if roles is None else tuple(roles)
@@ -576,9 +577,7 @@ def _codex_models(
             if not isinstance(item, dict) or item.get('visibility') != 'list':
                 continue
             model_id = str(item.get('slug') or '').strip()
-            if not model_id or not (
-                model_id.startswith('gpt-5.6') or model_id in {'gpt-5.5', 'gpt-6-astra'}
-            ):
+            if not model_id:
                 continue
             levels = []
             for level in item.get('supported_reasoning_levels') or []:
@@ -608,6 +607,12 @@ def _codex_models(
         if rows:
             return rows, source
     return [
+        _model(
+            'gpt-6.1-sol',
+            'GPT-6.1 Sol',
+            reasoning_levels=['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
+            default_reasoning_level='low',
+        ),
         _model(
             'gpt-6-astra',
             'GPT-6 Astra',

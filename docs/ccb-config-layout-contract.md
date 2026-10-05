@@ -549,7 +549,9 @@ Contract:
 
 - `thinking` may accompany an explicit `model` or apply to the provider's
   inherited default model. The control panel requires an explicit model before
-  offering model-specific levels; manual inherited-model use remains valid.
+  offering levels. Known models use model-specific levels; custom models may
+  select manual provider levels with an endpoint-support warning. Manual
+  inherited-model use remains valid.
 - Codex accepts the model-specific level exposed by the installed Codex model
   catalog and compiles it to `-c model_reasoning_effort="<level>"`.
   Astra's supported UI order is `low`, `medium`, `high`, `xhigh`, `max`;
