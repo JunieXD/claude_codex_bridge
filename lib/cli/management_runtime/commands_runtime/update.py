@@ -48,6 +48,7 @@ from ..install import (
 from ..provider_cache_cleanup import run_post_update_provider_cache_cleanup
 from ..provider_updates import run_provider_update_flow
 from ..source_update import update_source_from_fork
+from ..fork_runtime import is_fork_runtime, update_fork_runtime
 from ..versioning import REPO_URL, format_version_info, get_available_versions, get_version_info
 from .matching import find_matching_version, latest_version
 
@@ -80,6 +81,8 @@ def cmd_update(args, *, script_root: Path) -> int:
         return _update_rich_bundle()
     if _update_target_is_mobile(args):
         return _update_mobile_bundle(script_root=script_root, args=args)
+    if is_fork_runtime(script_root):
+        return update_fork_runtime(args, script_root=script_root)
     if platform.system() == "Windows":
         return _cmd_update_windows_release_surface(args, script_root=script_root)
     supported, reason = _supported_update_platform()

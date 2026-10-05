@@ -13,6 +13,7 @@ from cli.management_runtime.startup_update import (
     maybe_handle_startup_release_update,
 )
 from cli.phase2 import maybe_handle_phase2
+from cli.management_runtime.fork_runtime import fork_runtime_start_guard
 from cli.parser_runtime.constants import SUBCOMMANDS
 from cli.router import dispatch_auxiliary_command, dispatch_management_command, print_command_help, print_kill_help, print_start_help
 from cli.roles_runtime import cmd_roles
@@ -193,7 +194,12 @@ def _dispatch_rich(tokens: list[str], *, script_root: Path, cwd: Path, stdout: T
             return 0 if result.get('status') in {'ok', 'degraded', 'missing'} else 1
         _print_rich_usage(stdout)
         return 2
-    return cmd_rich(script_root=script_root, cwd=cwd, stdout=stdout, stderr=stderr)
+    try:
+        with fork_runtime_start_guard(script_root):
+            return cmd_rich(script_root=script_root, cwd=cwd, stdout=stdout, stderr=stderr)
+    except ValueError as error:
+        print(str(error), file=stderr)
+        return 1
 
 
 def _print_rich_usage(stdout: TextIO) -> None:
@@ -299,20 +305,19 @@ def run_cli_entrypoint(
     if roles_result is not None:
         return roles_result
 
-    auto_rich_result = _dispatch_auto_rich_start(tokens, script_root=script_root, cwd=cwd, stdout=stdout, stderr=stderr)
-    if auto_rich_result is not None:
-        return auto_rich_result
-
-    startup_update_result = maybe_handle_startup_release_update(
-        tokens,
-        script_root=script_root,
-        cwd=cwd,
-        stdout=stdout,
-        stderr=stderr,
-        stdin=sys.stdin,
-    )
-    if startup_update_result is not None:
-        return startup_update_result
-
-    return maybe_handle_phase2(tokens, cwd=cwd, stdout=stdout, stderr=stderr)
+    try:
+        with fork_runtime_start_guard(script_root):
+            auto_rich_result = _dispatch_auto_rich_start(tokens, script_root=script_root, cwd=cwd, stdout=stdout, stderr=stderr)
+            if auto_rich_result is not None:
+                return auto_rich_result
+            startup_update_result = maybe_handle_startup_release_update(
+                tokens, script_root=script_root, cwd=cwd, stdout=stdout,
+                stderr=stderr, stdin=sys.stdin,
+            )
+            if startup_update_result is not None:
+                return startup_update_result
+            return maybe_handle_phase2(tokens, cwd=cwd, stdout=stdout, stderr=stderr)
+    except ValueError as error:
+        print(str(error), file=stderr)
+        return 1
 __all__ = ["run_cli_entrypoint"]

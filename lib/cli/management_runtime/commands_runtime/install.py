@@ -8,6 +8,7 @@ from cli.tools_runtime.workbench import print_workbench_status, uninstall_workbe
 
 from ..claude_home_cleanup import cleanup_claude_files
 from ..install import run_installer
+from ..fork_runtime import is_fork_runtime, update_fork_runtime
 
 
 def cmd_install(args, *, script_root: Path) -> int:
@@ -45,11 +46,16 @@ def cmd_uninstall(args, *, script_root: Path) -> int:
         result = uninstall_workbench(profile='rich', remove_cache=False)
         print_workbench_status(result)
         return 0 if result.get('status') in {'ok', 'missing'} else 1
+    if is_fork_runtime(script_root):
+        print('Automatic Fork runtime uninstall is disabled to preserve provider data. Stop projects and remove only the independent runtime and its command links manually.')
+        return 1
     cleanup_claude_files()
     return run_installer("uninstall", script_root=script_root)
 
 
 def cmd_reinstall(_args, *, script_root: Path) -> int:
+    if is_fork_runtime(script_root):
+        return update_fork_runtime(_args, script_root=script_root, rebuild=True)
     cleanup_claude_files()
     return run_installer("install", script_root=script_root)
 

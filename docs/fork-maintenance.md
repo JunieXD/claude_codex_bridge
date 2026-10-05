@@ -119,6 +119,50 @@ They are separate from this source repository and must remain private.
 
 ## Updating an installed Fork
 
+### Independent runtime
+
+The preferred local layout separates the development checkout on the external
+disk from `/Users/junie/Programs/CCB-runtime` on the internal disk. Runtime files
+are real copies, not links to the development disk. Only tracked runtime assets,
+an independent Python environment, and three native executables are installed;
+Git history, tests, documentation artwork, and Cargo caches stay in development.
+
+Install from a clean, committed checkout with no live CCB source/runtime projects:
+
+```sh
+rtk proxy .venv/bin/python scripts/install_fork_runtime.py \
+  --runtime-root "$HOME/Programs/CCB-runtime" --bin-dir /opt/homebrew/bin
+```
+
+`ccb update` in this installation follows the configured Fork branch, fast-forwards
+the external checkout, builds there, verifies a staged runtime, then replaces the
+internal runtime. `ccb reinstall` rebuilds it without clearing provider settings.
+The development disk is needed only for these operations, not ordinary use.
+Version checks query this Fork without reading the development checkout.
+Official/npm updates and upstream startup-update prompts are disabled for this
+installation, including when its manifest is missing or invalid.
+
+The installer blocks live runtimes, concurrent updates, and new startups during
+replacement. Build/validation failures leave the existing installation unchanged;
+link-publication failures restore the previous installation and command links.
+The previous runtime is kept in `.CCB-runtime.previous` beside the current one,
+replacing only an installer-owned backup on the next successful installation.
+Authentication, Claude/Codex settings, other plugins, tmux configuration, and
+project/session data are not overwritten. Existing project references to the
+old source installation must be rebased once during the initial migration;
+subsequent updates retain the same internal path.
+
+Native `build-ccb-*` commands rebuild the independent runtime via `ccb reinstall`;
+they do not look for Cargo workspaces on the internal disk.
+
+Automatic `ccb uninstall` is deliberately disabled for this layout to avoid
+the upstream uninstaller's provider cleanup and unrelated installation defaults.
+For removal, stop all projects, remove only command links targeting this runtime,
+and delete the runtime plus its installer-owned rollback directory. Leave provider
+homes and project `.ccb` data intact.
+
+### Live source installation
+
 Run `ccb update` without a version argument. It requires:
 
 - `origin` points to `JunieXD/claude_codex_bridge` on GitHub.

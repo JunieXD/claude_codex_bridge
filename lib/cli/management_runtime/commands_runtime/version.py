@@ -6,6 +6,7 @@ import subprocess
 from ..install import find_install_dir
 from ..versioning import format_version_info, get_available_versions, get_remote_version_info, get_version_info
 from ..source_update import source_update_status
+from ..fork_runtime import fork_runtime_update_status, is_fork_runtime, load_fork_runtime
 from .matching import is_newer_version, latest_version
 
 
@@ -32,7 +33,9 @@ def cmd_version(args, *, script_root: Path) -> int:
         )
 
     print("\nChecking for updates...")
-    if _is_source_install(local_info=local_info, install_dir=install_dir):
+    if is_fork_runtime(install_dir):
+        _print_fork_runtime_update_status(install_dir)
+    elif _is_source_install(local_info=local_info, install_dir=install_dir):
         _print_source_update_status(install_dir)
     elif (install_dir / ".git").exists():
         _print_git_update_status(local_info)
@@ -47,6 +50,22 @@ def _is_source_install(*, local_info: dict[str, object], install_dir: Path) -> b
     if str(local_info.get("source_kind") or "").strip() == "source":
         return True
     return (install_dir / ".git").exists()
+
+
+def _print_fork_runtime_update_status(install_dir: Path) -> None:
+    try:
+        manifest = load_fork_runtime(install_dir)
+        print(f'   Fork: {manifest["repository"]}, branch {manifest["branch"]}')
+        print(f'   Development checkout (updates only): {manifest["source_root"]}')
+        status = fork_runtime_update_status(install_dir)
+    except (ValueError, OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+        print(f'Unable to check Fork runtime updates: {str(error).strip()[:300]}')
+        print('The installed runtime remains usable offline; official release updates are disabled.')
+        return
+    if status['state'] == 'current':
+        print('Fork runtime is up to date.')
+    else:
+        print('Fork branch differs from the installed build; connect the development disk and run: ccb update')
 
 
 def _print_source_update_status(install_dir: Path) -> None:
