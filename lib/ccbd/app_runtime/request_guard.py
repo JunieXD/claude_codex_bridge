@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 _STOPPING_GUARDED_OPS = frozenset({
+    'claude_cache',
     'submit',
     'attach',
     'start',

@@ -24,6 +24,7 @@ def _is_windows() -> bool:
 
 class CcbdSocketServer:
     _MUTATING_OPS = frozenset({
+        'claude_cache',
         'submit',
         'cancel',
         'attach',

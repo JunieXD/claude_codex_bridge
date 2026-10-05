@@ -140,6 +140,12 @@ fast-forwards this Fork's `origin` branch without installing an official release
 or restarting agents. See [Fork maintenance](docs/fork-maintenance.md) before
 switching an existing npm installation or merging upstream changes.
 
+The Fork also includes an opt-in [Claude delegated-work cache keepalive
+experiment](docs/claude-cache-keepalive.md). It preserves auxiliary TTL settings
+and uses native tool-less forks with usage checks and CCB logs. It is disabled
+by default: the current relay's retention tests are inconsistent, so do not
+enable it as a guaranteed cost-saving feature.
+
 Install or update an npm-managed CCB with npm:
 
 ```bash

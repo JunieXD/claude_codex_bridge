@@ -1,0 +1,43 @@
+{
+  "date": "2026-10-05",
+  "claude_code_version": "2.1.285",
+  "model": "claude-opus-5-5",
+  "scope": "Two isolated synthetic native sessions on the configured relay; one run per condition; no same-account untouched control",
+  "experimental_output_token_limit": 256,
+  "main_cache_ttl_verified": "1h",
+  "fork_delay_minutes": 45,
+  "main_return_delay_minutes": 63,
+  "production_enabled": false,
+  "sessions": [
+    {
+      "configured_helper_ttl": "5m",
+      "captured_fork_markers_ttl": "5m",
+      "reported_fork_new_cache_ttl": "1h",
+      "ordinary_main_nonmessage_fields_unchanged": true,
+      "normalized_fork_prefix_matches_main": true,
+      "fork_usage": {"input_tokens": 37, "cache_read_input_tokens": 5519, "cache_creation_input_tokens": 3, "output_tokens": 3},
+      "main_return_usage": {"input_tokens": 2, "cache_read_input_tokens": 5522, "cache_creation_input_tokens": 52, "output_tokens": 3},
+      "transcript_before_fork": 7,
+      "transcript_after_fork": 7
+    },
+    {
+      "configured_helper_ttl": "1h",
+      "captured_fork_markers_ttl": "1h",
+      "reported_fork_new_cache_ttl": "1h",
+      "ordinary_main_nonmessage_fields_unchanged": true,
+      "normalized_fork_prefix_matches_main": true,
+      "fork_usage": {"input_tokens": 37, "cache_read_input_tokens": 5533, "cache_creation_input_tokens": 3, "output_tokens": 3},
+      "main_return_usage": {"input_tokens": 2, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 5588, "output_tokens": 3},
+      "transcript_before_fork": 7,
+      "transcript_after_fork": 7
+    }
+  ],
+  "zero_output_replay": {
+    "original_headers_preserved": false,
+    "initial_fork_usage": {"input_tokens": 37, "cache_read_input_tokens": 3222, "cache_creation_input_tokens": 2314, "output_tokens": 0},
+    "initial_main_usage": {"input_tokens": 2, "cache_read_input_tokens": 3222, "cache_creation_input_tokens": 2311, "output_tokens": 0},
+    "repeated_fork_usage": {"input_tokens": 37, "cache_read_input_tokens": 5536, "cache_creation_input_tokens": 0, "output_tokens": 0},
+    "interpretation": "Exact replay warmed its own prefix; it did not establish dependable renewal of the original main cache"
+  },
+  "conclusion": "Preserve auxiliary settings and keep the feature experimental/off; the tested relay did not reliably reuse every refreshed prefix. Neither 1h helpers nor request replay has established an end-to-end guarantee."
+}

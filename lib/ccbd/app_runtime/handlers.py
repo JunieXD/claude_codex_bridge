@@ -34,6 +34,7 @@ from ccbd.handlers import (
     build_watch_handler,
 )
 from ccbd.frontdesk_handler import build_frontdesk_forward_planner_handler
+from ccbd.handlers.claude_cache import build_claude_cache_handler
 
 
 def register_handlers(app) -> None:
@@ -43,6 +44,7 @@ def register_handlers(app) -> None:
     project_view_service = _GraphServiceProxy(graph_source, 'project_view_service')
     project_focus_service = _GraphServiceProxy(graph_source, 'project_focus_service')
     runtime_service = _GraphServiceProxy(graph_source, 'runtime_service')
+    registry = _GraphServiceProxy(graph_source, 'registry')
     ping_graph = _GraphPingDependencies(graph_source)
 
     app.socket_server.register_handler('submit', _graph_request(graph_source, build_submit_handler(dispatcher)))
@@ -56,6 +58,10 @@ def register_handlers(app) -> None:
         _graph_request(graph_source, build_watch_handler(dispatcher, health_monitor=health_monitor)),
     )
     app.socket_server.register_handler('queue', _graph_request(graph_source, build_queue_handler(dispatcher)))
+    app.socket_server.register_handler(
+        'claude_cache',
+        _graph_request(graph_source, build_claude_cache_handler(dispatcher, registry)),
+    )
     app.socket_server.register_handler(
         'trace',
         _graph_request(

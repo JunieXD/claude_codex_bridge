@@ -16,6 +16,7 @@ from provider_core.contracts import ProviderRuntimeLauncher
 from provider_core.runtime_shared import apply_provider_command_template
 
 from .env_runtime.exports import CLAUDE_AUTH_COMMAND_CONTROL_ENV_KEYS
+from provider_backends.claude.cache_keepalive import configure_cache_keepalive
 
 
 _ROOT_SANDBOX_ENV = {'IS_SANDBOX': '1'}
@@ -116,6 +117,14 @@ def build_start_cmd(
         auth_command_prefix = '; '.join(
             f'unset {key}' for key in sorted(CLAUDE_AUTH_COMMAND_CONTROL_ENV_KEYS)
         )
+    cmd_parts = provider_start_parts_fn('claude')
+    if cli_supports_flag_fn(cmd_parts, '--plugin-dir'):
+        configure_cache_keepalive(
+            cmd_parts,
+            managed_env,
+            extra_env={**(getattr(profile, 'env', None) or {}), **spec.env},
+            startup_args=spec.startup_args,
+        )
     env_prefix = join_env_prefix(
         build_env_prefix_fn(profile=profile, extra_env=spec.env),
         auth_command_prefix,
@@ -127,7 +136,6 @@ def build_start_cmd(
             caller_context_env(actor=spec.name, runtime_dir=runtime_dir, launch_session_id=launch_session_id)
         ),
     )
-    cmd_parts = provider_start_parts_fn('claude')
     if root_user:
         _append_unique_flag(cmd_parts, _ROOT_SKIP_PERMISSIONS_FLAG, spec.startup_args)
     if cli_supports_flag_fn(cmd_parts, '--setting-sources'):

@@ -75,6 +75,12 @@ Maintained Fork: https://github.com/JunieXD/claude_codex_bridge
   profile/model values named `fork` or `resume` do not become subcommands.
 - Worktree enumeration uses NUL-delimited Git output and preserves path spaces,
   line breaks, carriage returns, and non-ASCII names.
+- Opt-in Claude cache keepalive uses native tool-less forks only while that
+  Claude session is waiting for delegated Codex work. It requires observed
+  one-hour main-cache usage, preserves auxiliary TTL settings, logs numeric
+  usage, and stops after a miss or unknown cost. See
+  [the experimental feature guide](claude-cache-keepalive.md) for limits and
+  relay caveats.
 
 ## Existing managed Claude settings
 

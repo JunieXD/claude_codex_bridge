@@ -1,0 +1,6 @@
+{
+  "name": "ccb-cache-keepalive",
+  "version": "0.1.0",
+  "author": { "name": "CCB Fork maintainers" },
+  "description": "Keep verified one-hour Claude caches warm while waiting for delegated Codex work"
+}
