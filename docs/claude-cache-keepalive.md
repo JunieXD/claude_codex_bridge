@@ -84,6 +84,11 @@ CCB_CLAUDE_CACHE_KEEPALIVE = "1"
 ```
 
 Set this to `"0"` to disable the experimental mod; this is also the default.
+The launcher reads this flag in `ccbd`, not in the Claude pane. Exporting it only
+in the shell that runs `ccb` is not enough when the keeper/daemon were started
+without it: the pane inherits the variable but the mod is silently not loaded.
+Check that the Claude process was started with `--plugin-dir` and that
+`cache-keepalive.log` appears after the first main turn.
 Restart that Claude agent after changing launch environment. To request one-hour
 main caching explicitly, configure Claude's `promptCacheTtl = "1h"` setting or
 `CLAUDE_CODE_PROMPT_CACHE_TTL=1h` separately; CCB does not silently enable it.
