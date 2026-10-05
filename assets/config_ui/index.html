@@ -3141,7 +3141,7 @@ main = "demo:codex"
       const role = overlay.role || "";
       const model = overlay.model || "inherit";
       const thinking = overlay.thinking || "inherit";
-      const startupArgs = Array.isArray(overlay.startup_args) ? overlay.startup_args.join(" ") : "";
+      const startupArgs = Array.isArray(overlay.startup_args) ? JSON.stringify(overlay.startup_args) : "";
       const keyConfigured = Boolean(overlay.key);
       const roleListId = `${container.id}RoleOptions`;
       container.innerHTML = `
@@ -3178,7 +3178,7 @@ main = "demo:codex"
         <details>
           <summary>${t("advancedOverlay")}</summary>
           <div class="details-body">
-            <label class="field"><span class="label">startup_args</span><input class="input" data-field="startup_args" value="${escapeAttribute(startupArgs)}" ${isRich ? "disabled" : ""}></label>
+            <label class="field"><span class="label">startup_args (JSON array)</span><input class="input" data-field="startup_args" placeholder='["--flag", "value with spaces"]' value="${escapeAttribute(startupArgs)}" ${isRich ? "disabled" : ""}></label>
             <label class="field"><span class="label">workspace_group</span><input class="input" data-field="workspace_group" value="${escapeAttribute(overlay.workspace_group || "")}" ${isRich ? "disabled" : ""}></label>
           </div>
         </details>`;
@@ -3270,16 +3270,25 @@ main = "demo:codex"
       field("role").addEventListener("change", (event) => mutateVisual(() => {
         setOverlayField(leaf.name, "role", event.target.value.trim().toLowerCase());
       }));
-      field("model").addEventListener("change", (event) => mutateVisual(() => {
+      field("model").addEventListener("change", (event) => {
         let value = event.target.value;
-        if (value === "__custom__") value = String(window.prompt(t("customModel"), "") || "").trim();
-        setOverlayField(leaf.name, "model", value);
-        const capability = providerCapability(leaf.provider);
-        const levels = thinkingLevels(capability, value);
-        if (!levels.includes(overlayFor(leaf.name).thinking)) {
-          setOverlayField(leaf.name, "thinking", null);
+        if (value === "__custom__") {
+          const custom = window.prompt(t("customModel"), "");
+          if (custom === null || !custom.trim()) {
+            event.target.value = overlayFor(leaf.name).model || "inherit";
+            return;
+          }
+          value = custom.trim();
         }
-      }));
+        mutateVisual(() => {
+          setOverlayField(leaf.name, "model", value);
+          const capability = providerCapability(leaf.provider);
+          const levels = thinkingLevels(capability, value);
+          if (!levels.includes(overlayFor(leaf.name).thinking)) {
+            setOverlayField(leaf.name, "thinking", null);
+          }
+        });
+      });
       field("thinking").addEventListener("change", (event) => mutateVisual(() => {
         setOverlayField(leaf.name, "thinking", event.target.value);
       }));
@@ -3290,13 +3299,29 @@ main = "demo:codex"
       field("url").addEventListener("change", (event) => mutateVisual(() => {
         setOverlayField(leaf.name, "url", event.target.value.trim());
       }));
-      field("startup_args").addEventListener("change", (event) => mutateVisual(() => {
-        const args = event.target.value.trim().split(/\s+/).filter(Boolean);
-        setOverlayField(leaf.name, "startup_args", args.length ? args : null);
-      }));
+      field("startup_args").addEventListener("change", (event) => {
+        let args;
+        try {
+          args = parseStartupArgs(event.target.value);
+        } catch (error) {
+          setActionStatus(String(error.message), true);
+          return;
+        }
+        mutateVisual(() => setOverlayField(leaf.name, "startup_args", args.length ? args : null));
+      });
       field("workspace_group").addEventListener("change", (event) => mutateVisual(() => {
         setOverlayField(leaf.name, "workspace_group", event.target.value.trim());
       }));
+    }
+
+    function parseStartupArgs(value) {
+      const text = String(value || "").trim();
+      if (!text) return [];
+      const args = JSON.parse(text);
+      if (!Array.isArray(args) || args.some((item) => typeof item !== "string" || item.includes("\u0000"))) {
+        throw new Error("startup_args must be a JSON array of strings");
+      }
+      return args;
     }
 
     function splitSelected(kind) {
