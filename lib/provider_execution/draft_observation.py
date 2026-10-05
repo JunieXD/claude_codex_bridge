@@ -7,6 +7,7 @@ from dataclasses import dataclass
 _SGR = re.compile(r'\x1b\[([0-9;]*)m')
 _ANSI = re.compile(r'\x1b\[[0-?]*[ -/]*[@-~]')
 _BORDER = re.compile(r'^─{8,}\s*$')
+_COLOURED = re.compile(r'\x1b\[(?:[0-9;]*;)?38[;:]')
 
 
 @dataclass(frozen=True)
@@ -76,7 +77,7 @@ def inspect_screen(provider: str, screen: dict, *, binding: str) -> Observation:
             return result('unknown', 'provider_busy')
         # Default main composer has a status footer below the cursor. Selection
         # menus use the same arrow; their confirmation footer is not accepted.
-        footer = _codex_footer(lines, styled, cursor_y)
+        footer = _codex_footer(lines, styled, screen['text'].split('\n'), cursor_y)
         if footer is None:
             return result('unknown', 'composer_layout_unknown')
         if _editor_mode_in_footer(lines[footer:]):
@@ -122,20 +123,26 @@ def inspect_screen(provider: str, screen: dict, *, binding: str) -> Observation:
     return result('nonempty', 'claude_draft')
 
 
-def _codex_footer(lines, styled, cursor_y: int) -> int | None:
+def _codex_footer(lines, styled, raw, cursor_y: int) -> int | None:
     # The status bar is the last nonblank row, separated from the editor by
     # a blank row. Its configurable labels (including model names) are opaque.
     footer = next((i for i in range(len(lines)-1, cursor_y, -1) if lines[i].strip()), None)
+    paired = False
     if (footer is not None and footer > cursor_y+2
             and re.match(r'^  \? for shortcuts\b', lines[footer])
-            and _codex_status_row(lines[footer-1], styled[footer-1])):
+            and (_codex_status_row(lines[footer-1], styled[footer-1])
+                 # Above the native shortcuts row, newer Codex colours each status
+                 # field but leaves the ' · ' separators undimmed. Drafts stay uncoloured.
+                 or (lines[footer-1].startswith('  ') and ' · ' in lines[footer-1]
+                     and _COLOURED.search(raw[footer-1])))):
         footer -= 1
+        paired = True
     if footer is None or footer <= cursor_y+1 or lines[footer-1].strip():
         return None
     row = lines[footer]
     if not row.startswith('  '):
         return None
-    if re.match(r'^  (?:\d+% [Cc]ontext\b|\? for shortcuts\b)', row):
+    if paired or re.match(r'^  (?:\d+% [Cc]ontext\b|\? for shortcuts\b)', row):
         return footer
     # Custom status bars separate fields with a dim middle dot. Require the
     # rendering attribute as well as spacing; ordinary draft prose is not a

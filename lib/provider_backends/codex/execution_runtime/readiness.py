@@ -10,7 +10,7 @@ _UNUSABLE_LINE_PATTERNS = (
     re.compile(r'^(?:error:\s*)?(?:pane is dead|pane dead)\b[.!:;\-\s]*$', re.IGNORECASE),
     re.compile(r'^(?:codex\s+)?shutting down(?:\.\.\.)?[.!:;\-\s]*$', re.IGNORECASE),
 )
-_IDLE_PROMPT_RE = re.compile(r'^\s*›\s+\S.*$', re.MULTILINE)
+_IDLE_PROMPT_RE = re.compile(r'^\s*[›»]\s+\S.*$', re.MULTILINE)
 _ACTIVE_STATUS_RE = re.compile(r'^\s*•\s+(?:Working|Thinking|Running)\b', re.MULTILINE | re.IGNORECASE)
 
 
@@ -34,7 +34,7 @@ def looks_ready(text: str) -> bool:
         return bool(_IDLE_PROMPT_RE.search(tail)) and not bool(_ACTIVE_STATUS_RE.search(tail))
     if 'model:' in lowered and 'loading' in lowered:
         return False
-    return '›' in normalized or '>_' in normalized or '/model to change' in lowered
+    return '›' in normalized or '»' in normalized or '>_' in normalized or '/model to change' in lowered
 
 
 def wait_for_runtime_ready(backend: object, pane_id: str, *, timeout_s: float = 8.0) -> bool:

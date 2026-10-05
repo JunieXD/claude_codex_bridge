@@ -44,3 +44,15 @@ def test_new_codex_busy_or_editor_mode_blocks_delivery(prompt, prefix, suffix):
     }
     assert inspect_screen('codex', screen, binding='test').state == 'unknown'
 
+
+
+@pytest.mark.parametrize('prompt', ['›', '»'])
+def test_new_codex_coloured_status_row_above_shortcuts_is_footer(prompt):
+    screen = {
+        'text': f'{prompt} Ask Codex to do anything\n\n'
+        '  \x1b[38;2;246;226;183mgpt ultra\x1b[39m · \x1b[38;2;171;223;167m~/project\x1b[39m\n'
+        '  ? for shortcuts                       ⚠ 4 warnings · f2 to view',
+        'cursor_x': 2,
+        'cursor_y': 0,
+    }
+    assert inspect_screen('codex', screen, binding='test').state == 'empty'
