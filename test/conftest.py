@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import shutil
 import signal
 import stat
@@ -128,6 +129,12 @@ def _install_provider_stubs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> 
     home_dir.mkdir(parents=True, exist_ok=True)
     bin_dir.mkdir(parents=True, exist_ok=True)
     _write_provider_stub_launchers(bin_dir)
+    # Provider panes run login shells. On macOS /etc/profile and /etc/zprofile
+    # run path_helper, which moves system paths such as /opt/homebrew/bin ahead
+    # of the stub directory, so an installed CLI would replace the stub.
+    # Re-prepend it from the test HOME, as a user's own profile would.
+    for profile in (".profile", ".zprofile"):
+        (home_dir / profile).write_text(f'PATH={shlex.quote(str(bin_dir))}:"$PATH"; export PATH\n', encoding="utf-8")
 
     for name in (
         "CCB_CALLER_ACTOR",
