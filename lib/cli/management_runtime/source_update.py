@@ -62,10 +62,12 @@ def _source_runtime_processes(root: Path, process_table: str) -> list[int]:
         'bin/ccb-agent-sidebar', 'tools/ccb-agent-sidebar/target/release/ccb-agent-sidebar',
     )
     paths = {str(root / name) for name in relative_paths}
+    # The installer runs as a child of `ccb update`, which waits on it.
+    updaters = {os.getpid(), os.getppid()}
     found = []
     for row in process_table.splitlines():
         parts = row.strip().split(None, 1)
-        if len(parts) != 2 or not parts[0].isdigit() or int(parts[0]) == os.getpid():
+        if len(parts) != 2 or not parts[0].isdigit() or int(parts[0]) in updaters:
             continue
         try:
             arguments = shlex.split(parts[1])

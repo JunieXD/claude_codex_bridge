@@ -137,8 +137,10 @@ def test_update_refuses_live_source_runtime_before_merge(fork_checkout, monkeypa
 def test_runtime_detection_covers_spaces_and_ignores_other_installs(tmp_path, monkeypatch):
     root = tmp_path / 'source with spaces'
     monkeypatch.setattr(source_update.os, 'getpid', lambda: 100)
+    monkeypatch.setattr(source_update.os, 'getppid', lambda: 99)
     table = '\n'.join([
-        f'100 python "{root}/ccb.py" update',
+        f'99 python "{root}/ccb.py" update',
+        f'100 python "{root}/scripts/install_fork_runtime.py" --lock-held',
         f'101 python {root}/lib/ccbd/main.py --project /tmp/project',
         f'102 python "{root}/lib/ccbd/keeper_main.py" --project /tmp/project',
         f'103 {root}/tools/ccb-agent-sidebar/target/release/ccb-agent-sidebar',
