@@ -4,6 +4,7 @@ import base64
 import hashlib
 import json
 import os
+import shutil
 from pathlib import Path
 import socket
 import subprocess
@@ -35,6 +36,16 @@ from provider_backends.codex.start_cmd_runtime.rewriting import (
 from provider_execution.base import ProviderSubmission
 from provider_execution.followups import ActiveFollowupRequest
 from storage.path_helpers import unix_socket_path_is_safe
+
+
+@pytest.fixture
+def short_tmp():
+    # Unix socket paths are limited to about 104 bytes. macOS's per-user
+    # $TMPDIR (and so pytest's tmp_path) is already close to that, so socket
+    # tests need a short root. /tmp may be unwritable on some hosts.
+    root = Path(tempfile.mkdtemp(prefix='ccbt-', dir='/tmp' if os.access('/tmp', os.W_OK) else None))
+    yield root
+    shutil.rmtree(root, ignore_errors=True)
 
 
 def _read_exact(connection: socket.socket, length: int) -> bytes:
@@ -141,8 +152,8 @@ def test_steer_active_turn_uses_exact_active_turn_precondition_and_idempotency_k
     }
 
 
-def test_steer_active_turn_uses_masked_websocket_frames_over_unix_socket(tmp_path: Path) -> None:
-    socket_path = tmp_path / 'app-server.sock'
+def test_steer_active_turn_uses_masked_websocket_frames_over_unix_socket(short_tmp: Path) -> None:
+    socket_path = short_tmp / 'app-server.sock'
     ready = Event()
     seen: list[dict[str, object]] = []
     server = Thread(target=_serve_test_websocket, args=(socket_path, ready, seen))
@@ -226,12 +237,12 @@ def test_steer_active_turn_fails_closed_on_terminal_or_mismatched_turn(monkeypat
     assert missing.reason == 'provider_turn_not_active'
 
 
-def test_codex_adapter_requires_live_managed_socket_and_exact_bound_turn(tmp_path: Path, monkeypatch) -> None:
+def test_codex_adapter_requires_live_managed_socket_and_exact_bound_turn(short_tmp: Path, monkeypatch) -> None:
     session_id = '12345678-1234-1234-1234-123456789abc'
-    session_path = tmp_path / f'rollout-{session_id}.jsonl'
+    session_path = short_tmp / f'rollout-{session_id}.jsonl'
     session_path.write_text('', encoding='utf-8')
-    socket_path = tmp_path / 'app-server.sock'
-    remote_marker = tmp_path / 'app-server.remote'
+    socket_path = short_tmp / 'app-server.sock'
+    remote_marker = short_tmp / 'app-server.remote'
     remote_marker.write_text(f'{socket_path}\n', encoding='utf-8')
     listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     listener.bind(str(socket_path))
@@ -387,22 +398,22 @@ def test_codex_adapter_keeps_ambiguous_transport_result_durably_accepted(tmp_pat
     assert result.reason == 'app_server_websocket_timeout'
 
 
-def test_managed_launcher_preserves_resume_rewrites_and_fallback(tmp_path: Path) -> None:
+def test_managed_launcher_preserves_resume_rewrites_and_fallback(short_tmp: Path) -> None:
     session_id = '12345678-1234-1234-1234-123456789abc'
     command, state = build_managed_app_server_command(
         ['codex', '--profile', 'ccb', 'resume', session_id],
-        runtime_dir=tmp_path,
+        runtime_dir=short_tmp,
     )
 
     assert state['codex_app_server_command'] == [
         'codex',
         'app-server',
         '--listen',
-        f'unix://{tmp_path / "app-server.sock"}',
+        f'unix://{short_tmp / "app-server.sock"}',
     ]
-    assert state['codex_app_server_remote_marker'] == str(tmp_path / 'app-server.remote')
-    assert f'codex --remote unix://{tmp_path / "app-server.sock"} --profile ccb' in command
-    assert f"printf '%s\\n' {tmp_path / 'app-server.sock'} > {tmp_path / 'app-server.remote'}" in command
+    assert state['codex_app_server_remote_marker'] == str(short_tmp / 'app-server.remote')
+    assert f'codex --remote unix://{short_tmp / "app-server.sock"} --profile ccb' in command
+    assert f"printf '%s\\n' {short_tmp / 'app-server.sock'} > {short_tmp / 'app-server.remote'}" in command
     assert 'else exec codex --profile ccb' in command
     assert extract_resume_session_id(command) == session_id
 
@@ -455,18 +466,18 @@ def test_codex_fork_capability_probe_is_explicit(monkeypatch) -> None:
     assert supports_session_fork(('env', 'codex')) is False
 
 
-def test_managed_app_server_supervisor_starts_and_stops_exact_child(tmp_path: Path, monkeypatch) -> None:
-    socket_path = tmp_path / 'app-server.sock'
+def test_managed_app_server_supervisor_starts_and_stops_exact_child(short_tmp: Path, monkeypatch) -> None:
+    socket_path = short_tmp / 'app-server.sock'
     child = (
         'import socket,time; '
         f's=socket.socket(socket.AF_UNIX); s.bind({str(socket_path)!r}); s.listen(); time.sleep(30)'
     )
     monkeypatch.setenv('CCB_CODEX_APP_SERVER_COMMAND_JSON', json.dumps([sys.executable, '-c', child]))
     monkeypatch.setenv('CCB_CODEX_APP_SERVER_SOCKET', str(socket_path))
-    supervisor = ManagedCodexAppServer(tmp_path)
+    supervisor = ManagedCodexAppServer(short_tmp)
 
     assert supervisor.start() is True
-    pid = json.loads((tmp_path / 'app-server.pid').read_text(encoding='utf-8'))['pid']
+    pid = json.loads((short_tmp / 'app-server.pid').read_text(encoding='utf-8'))['pid']
     assert pid > 0
     assert socket_path.is_socket()
     supervisor.stop()
@@ -478,12 +489,12 @@ def test_managed_app_server_supervisor_starts_and_stops_exact_child(tmp_path: Pa
     else:
         raise AssertionError('managed app-server child remained alive after supervisor stop')
     assert not socket_path.exists()
-    assert not (tmp_path / 'app-server.pid').exists()
-    assert not (tmp_path / 'app-server.remote').exists()
+    assert not (short_tmp / 'app-server.pid').exists()
+    assert not (short_tmp / 'app-server.remote').exists()
 
 
-def test_managed_app_server_failed_start_cleans_owned_runtime_artifacts(tmp_path: Path, monkeypatch) -> None:
-    socket_path = tmp_path / 'app-server.sock'
+def test_managed_app_server_failed_start_cleans_owned_runtime_artifacts(short_tmp: Path, monkeypatch) -> None:
+    socket_path = short_tmp / 'app-server.sock'
     stale = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     stale.bind(str(socket_path))
     stale.close()
@@ -493,20 +504,20 @@ def test_managed_app_server_failed_start_cleans_owned_runtime_artifacts(tmp_path
     )
     monkeypatch.setenv('CCB_CODEX_APP_SERVER_SOCKET', str(socket_path))
 
-    assert ManagedCodexAppServer(tmp_path).start() is False
+    assert ManagedCodexAppServer(short_tmp).start() is False
     assert not socket_path.exists()
-    assert not (tmp_path / 'app-server.pid').exists()
+    assert not (short_tmp / 'app-server.pid').exists()
 
     monkeypatch.setenv(
         'CCB_CODEX_APP_SERVER_COMMAND_JSON',
-        json.dumps([str(tmp_path / 'missing-codex'), 'app-server']),
+        json.dumps([str(short_tmp / 'missing-codex'), 'app-server']),
     )
-    assert ManagedCodexAppServer(tmp_path).start() is False
-    assert not (tmp_path / 'app-server.pid').exists()
+    assert ManagedCodexAppServer(short_tmp).start() is False
+    assert not (short_tmp / 'app-server.pid').exists()
 
 
-def test_managed_app_server_refuses_foreign_socket_path_without_unlinking_it(tmp_path: Path, monkeypatch) -> None:
-    foreign_socket = tmp_path / 'foreign.sock'
+def test_managed_app_server_refuses_foreign_socket_path_without_unlinking_it(short_tmp: Path, monkeypatch) -> None:
+    foreign_socket = short_tmp / 'foreign.sock'
     stale = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     stale.bind(str(foreign_socket))
     stale.close()
@@ -516,25 +527,18 @@ def test_managed_app_server_refuses_foreign_socket_path_without_unlinking_it(tmp
     )
     monkeypatch.setenv('CCB_CODEX_APP_SERVER_SOCKET', str(foreign_socket))
 
-    assert ManagedCodexAppServer(tmp_path / 'runtime').start() is False
+    assert ManagedCodexAppServer(short_tmp / 'runtime').start() is False
     assert foreign_socket.is_socket()
 
 
-def test_managed_app_server_uses_owned_short_socket_for_long_runtime_path(tmp_path: Path, monkeypatch) -> None:
-    # Use a short, writable fallback root instead of hardcoding /tmp: the
-    # host's /tmp may be unwritable (inode pressure), and the contract under
-    # test is "long preferred path falls back to a short runtime root".
-    # pytest's tmp_path can itself be long, so derive a short root directly
-    # under the process tempdir.
-    short_root = Path(tempfile.gettempdir()) / f'ccb-t{os.getpid()}'
-    short_root.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv('XDG_RUNTIME_DIR', str(short_root))
+def test_managed_app_server_uses_owned_short_socket_for_long_runtime_path(tmp_path: Path, short_tmp: Path, monkeypatch) -> None:
+    monkeypatch.setenv('XDG_RUNTIME_DIR', str(short_tmp))
     runtime_dir = tmp_path / ('long-runtime-' * 5) / ('nested-' * 5) / 'codex'
     runtime_dir.mkdir(parents=True)
     artifacts = codex_runtime_artifact_layout(runtime_dir)
     assert artifacts.app_server_socket_placement.preferred_path == runtime_dir / 'app-server.sock'
     assert artifacts.app_server_socket_placement.fallback_reason == 'path_too_long'
-    assert artifacts.app_server_socket.parent == short_root / 'ccb-runtime'
+    assert artifacts.app_server_socket.parent == short_tmp / 'ccb-runtime'
     assert unix_socket_path_is_safe(artifacts.app_server_socket)
 
     child = (

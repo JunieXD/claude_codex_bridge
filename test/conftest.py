@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import signal
 import stat
 import subprocess
 import sys
@@ -23,6 +24,34 @@ from storage.paths import PathLayout
 def pytest_configure() -> None:
     if str(lib_dir) not in sys.path:
         sys.path.insert(0, str(lib_dir))
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _stop_processes_left_under_basetemp(tmp_path_factory: pytest.TempPathFactory):
+    """Stop ccbd, keepers, sidebars and tmux servers that tests started.
+
+    Real-``ccb`` tests launch daemons whose command lines name a project or
+    pane path under the pytest base temp. Any that outlive the session would
+    otherwise accumulate across runs; panes exit with their tmux server.
+    """
+    yield
+    if os.name == "nt":
+        return
+    base = tmp_path_factory.getbasetemp()
+    roots = {str(base), str(base.resolve())}
+    listing = subprocess.run(["ps", "-axo", "pid=,command="], capture_output=True, text=True).stdout
+    pids = [
+        int(pid)
+        for pid, _, command in (line.strip().partition(" ") for line in listing.splitlines())
+        if int(pid) != os.getpid() and any(root in command for root in roots)
+    ]
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        for pid in pids:
+            try:
+                os.kill(pid, sig)
+            except ProcessLookupError:
+                pass
+        time.sleep(1)
 
 
 @pytest.fixture
