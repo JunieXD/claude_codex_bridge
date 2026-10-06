@@ -3162,10 +3162,10 @@ def test_codex_launcher_build_start_cmd_uses_agent_scoped_resume_session(monkeyp
     assert 'agent2-session-id' not in cmd
 
 
-def test_codex_launcher_resume_with_permission_overrides_stays_local_cli(monkeypatch, tmp_path: Path) -> None:
-    """#346: `resume <id>` combined with permission overrides must not use the
-    managed remote path, which the Codex CLI rejects. The requested permission
-    policy stays effective on the native local CLI."""
+def test_codex_launcher_resume_with_permission_overrides_moves_policy_to_app_server(monkeypatch, tmp_path: Path) -> None:
+    """#346: the Codex CLI rejects permission overrides on `--remote ... resume`.
+    The managed remote resume stays in place and the policy is applied as
+    app-server config; the local fallback keeps the original flags."""
     from provider_backends.codex.launcher_runtime.command_runtime import (
         build_start_cmd as build_start_cmd_impl,
     )
@@ -3215,13 +3215,15 @@ def test_codex_launcher_resume_with_permission_overrides_stays_local_cli(monkeyp
     )
 
     assert extract_resume_session_id(cmd) == 'agent1-session-id'
-    # Permission policy survives on the local resume.
-    assert '--ask-for-approval never' in cmd
-    assert '--sandbox danger-full-access' in cmd
-    assert '--dangerously-bypass-hook-trust' in cmd
-    # The managed remote path is deliberately not used for this resume.
-    assert '--remote' not in cmd
-    assert prepared.get('codex_app_server_enabled') is False
+    assert prepared.get('codex_app_server_enabled') is True
+    assert prepared['codex_app_server_command'][-4:] == [
+        '-c', 'approval_policy="never"', '-c', 'sandbox_mode="danger-full-access"',
+    ]
+    remote = next(part for part in cmd.split('; ') if '--remote' in part and 'exec' in part)
+    assert '--ask-for-approval' not in remote and '--sandbox' not in remote
+    assert '--dangerously-bypass-hook-trust' in remote
+    # The local fallback keeps the requested policy as CLI flags.
+    assert '--ask-for-approval never --sandbox danger-full-access' in cmd
 
 def test_codex_launcher_resume_without_overrides_can_use_remote(monkeypatch, tmp_path: Path) -> None:
     """#346 control: a resume without permission overrides keeps the managed

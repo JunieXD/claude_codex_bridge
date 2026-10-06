@@ -113,7 +113,11 @@ def build_managed_app_server_command(
     artifacts = codex_runtime_artifact_layout(runtime_dir)
     socket_path = artifacts.app_server_socket
     socket_url = f'unix://{socket_path}'
-    remote_args = [base_args[0], '--remote', socket_url, *base_args[1:]]
+    # Permissions go to the app-server so `--remote ... resume` accepts the
+    # TUI arguments; the local fallback keeps the original flags.
+    split = split_permission_overrides(base_args[1:])
+    server_config, remote_rest = split if split is not None else ([], base_args[1:])
+    remote_args = [base_args[0], '--remote', socket_url, *remote_rest]
     local_args = list(base_args)
     command = _managed_shell_command(
         remote_args=remote_args,
@@ -128,8 +132,51 @@ def build_managed_app_server_command(
         'codex_app_server_enabled': True,
         'codex_app_server_socket': str(socket_path),
         'codex_app_server_remote_marker': str(artifacts.app_server_remote_marker),
-        'codex_app_server_command': [executable, 'app-server', '--listen', socket_url],
+        'codex_app_server_command': [executable, 'app-server', '--listen', socket_url, *server_config],
     }
+
+
+# `codex --remote ... resume <id>` rejects permission overrides ("Permission
+# overrides are not supported when resuming a remote task"). The managed
+# app-server owns the threads, so the same policy is applied there as config:
+# with codex-cli 0.160 a remote resume reports the app-server's sandbox and
+# approval policy. `--dangerously-bypass-hook-trust` is accepted by a remote
+# resume and stays on the TUI. `--approve-for-me` has no config equivalent.
+_PERMISSION_FLAG_KEYS = {
+    '--ask-for-approval': 'approval_policy',
+    '-a': 'approval_policy',
+    '--sandbox': 'sandbox_mode',
+    '-s': 'sandbox_mode',
+}
+_PERMISSION_CONFIG_KEYS = {'approval_policy', 'sandbox_mode'}
+
+
+def split_permission_overrides(args: list[str]) -> tuple[list[str], list[str]] | None:
+    """Split Codex TUI options into app-server `-c` overrides and the rest.
+
+    Returns None when an override cannot be expressed as app-server config.
+    """
+    config: list[str] = []
+    rest: list[str] = []
+    tokens = iter(args)
+    for token in tokens:
+        name, attached, value = token.partition('=')
+        if name in _PERMISSION_FLAG_KEYS:
+            value = value if attached else next(tokens, '')
+            config += ['-c', f'{_PERMISSION_FLAG_KEYS[name]}="{value}"']
+        elif name == '--dangerously-bypass-approvals-and-sandbox':
+            config += ['-c', 'approval_policy="never"', '-c', 'sandbox_mode="danger-full-access"']
+        elif name == '--approve-for-me':
+            return None
+        elif name in {'-c', '--config'}:
+            item = value if attached else next(tokens, '')
+            if item.partition('=')[0].strip().lower() in _PERMISSION_CONFIG_KEYS:
+                config += ['-c', item]
+            else:
+                rest += [token] if attached else [token, item]
+        else:
+            rest.append(token)
+    return config, rest
 
 
 def _split_continuation(codex_args: list[str]) -> tuple[list[str], str, str]:
@@ -204,6 +251,7 @@ def _managed_shell_command(
 
 __all__ = [
     'build_managed_app_server_command',
+    'split_permission_overrides',
     'supports_managed_app_server',
     'supports_session_fork',
 ]

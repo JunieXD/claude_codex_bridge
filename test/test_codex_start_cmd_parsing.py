@@ -147,42 +147,50 @@ def test_generated_hook_trust_repairs_previously_duplicated_resume_suffix() -> N
 @pytest.mark.parametrize(
     ('args', 'expected'),
     [
-        # Long flags, separated and attached values.
-        (['codex', '--sandbox', 'read-only', 'resume', 's'], True),
-        (['codex', '--sandbox=read-only', 'resume', 's'], True),
-        (['codex', '--ask-for-approval', 'never', 'resume', 's'], True),
-        (['codex', '--ask-for-approval=never', 'resume', 's'], True),
-        # Short aliases from the codex CLI surface.
-        (['codex', '-s', 'read-only', 'resume', 's'], True),
-        (['codex', '-a', 'never', 'resume', 's'], True),
-        (['codex', '-s=read-only', 'resume', 's'], True),
-        # Standalone permission switches.
-        (['codex', '--dangerously-bypass-hook-trust', 'resume', 's'], True),
-        (['codex', '--dangerously-bypass-approvals-and-sandbox', 'resume', 's'], True),
+        # Overrides the managed app-server takes as config do not block.
+        (['codex', '--sandbox', 'read-only', 'resume', 's'], False),
+        (['codex', '-a', 'never', 'resume', 's'], False),
+        (['codex', '--dangerously-bypass-hook-trust', 'resume', 's'], False),
+        (['codex', '--dangerously-bypass-approvals-and-sandbox', 'resume', 's'], False),
+        (['codex', '-c', 'sandbox_mode=read-only', 'resume', 's'], False),
+        # No app-server equivalent: the resume stays on the local CLI.
         (['codex', '--approve-for-me', 'resume', 's'], True),
-        # Config overrides that change permission behavior.
-        (['codex', '-c', 'sandbox_mode=read-only', 'resume', 's'], True),
-        (['codex', '-c', 'approval_policy=never', 'resume', 's'], True),
-        (['codex', '-c', 'sandbox_mode=read-only', '--profile', 'x', 'resume', 's'], True),
-        # Non-permission configuration must not block.
-        (['codex', '-c', 'model=gpt-5', 'resume', 's'], False),
-        # Option values are not subcommands.
-        (['codex', '--model', 'resume', 's'], False),
-        (['codex', '-m', 'resume', 's'], False),
-        # resume must be the terminal continuation.
-        (['codex', 'resume', 's', '--sandbox', 'read-only'], False),
-        # Malformed and plain launches.
-        (['codex', 'resume'], False),
-        (['codex', '--profile', 'x', 'resume', 's'], False),
-        (['codex', '--search', 'resume', 's'], False),
+        (['codex', '-m', 'x', '--approve-for-me', 'resume', 's'], True),
+        # Only a terminal resume is affected.
+        (['codex', '--approve-for-me'], False),
+        (['codex', 'resume', 's', '--approve-for-me'], False),
     ],
 )
-def test_remote_resume_blocked_by_permission_overrides_spellings(args, expected) -> None:
+def test_remote_resume_blocked_by_permission_overrides(args, expected) -> None:
     from provider_backends.codex.launcher_runtime.command_runtime.service import (
         _remote_resume_blocked_by_permission_overrides,
     )
 
     assert _remote_resume_blocked_by_permission_overrides(args) is expected
+
+
+@pytest.mark.parametrize(
+    ('args', 'config', 'rest'),
+    [
+        (['--ask-for-approval', 'never', '--sandbox=danger-full-access'],
+         ['-c', 'approval_policy="never"', '-c', 'sandbox_mode="danger-full-access"'], []),
+        (['-a=on-request', '-s', 'read-only'],
+         ['-c', 'approval_policy="on-request"', '-c', 'sandbox_mode="read-only"'], []),
+        (['--dangerously-bypass-approvals-and-sandbox'],
+         ['-c', 'approval_policy="never"', '-c', 'sandbox_mode="danger-full-access"'], []),
+        (['-c', 'sandbox_mode="read-only"', '-c=approval_policy=never'],
+         ['-c', 'sandbox_mode="read-only"', '-c', 'approval_policy=never'], []),
+        (['-c', 'disable_paste_burst=true', '--config=model="x"', '--dangerously-bypass-hook-trust', '-m', 'gpt'],
+         [], ['-c', 'disable_paste_burst=true', '--config=model="x"', '--dangerously-bypass-hook-trust', '-m', 'gpt']),
+    ],
+)
+def test_split_permission_overrides(args, config, rest) -> None:
+    from provider_backends.codex.launcher_runtime.command_runtime.managed_app_server import (
+        split_permission_overrides,
+    )
+
+    assert split_permission_overrides(args) == (config, rest)
+    assert split_permission_overrides([*args, '--approve-for-me']) is None
 
 
 @pytest.mark.parametrize('startup_args', [

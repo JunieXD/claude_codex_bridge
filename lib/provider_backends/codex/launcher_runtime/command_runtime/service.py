@@ -18,6 +18,7 @@ from provider_backends.codex.session_authority import (
 from provider_profiles.codex_home_config import codex_api_authority
 
 from ..session_paths import session_file_for_runtime_dir
+from .managed_app_server import split_permission_overrides
 
 
 def build_start_cmd(
@@ -125,75 +126,19 @@ def build_codex_shell_prefix(*, profile, provider_api_env_keys_fn: Callable[[str
     return [f'unset {key}' for key in sorted(cleared)]
 
 
-# Long flags and short aliases of the Codex CLI permission overrides, in all
-# supported spellings. Each maps to the value arity it consumes.
-_CODEX_PERMISSION_OVERRIDE_FLAGS: dict[str, int] = {
-    '--ask-for-approval': 1,  # also --ask-for-approval=never
-    '-a': 1,
-    '--sandbox': 1,  # also --sandbox=read-only
-    '-s': 1,
-    '--dangerously-bypass-hook-trust': 0,
-    '--dangerously-bypass-approvals-and-sandbox': 0,
-    '--approve-for-me': 0,
-}
-
-# Config override keys that change permission behavior via `-c key=value`.
-_CODEX_PERMISSION_OVERRIDE_CONFIG_KEYS = {
-    'sandbox_mode',
-    'approval_policy',
-}
-
-
-def _codex_permission_overrides_present(tokens: list[str]) -> bool:
-    """True when any permission override appears in [tokens].
-
-    Handles space-separated values (`--sandbox read-only`), attached values
-    (`--sandbox=read-only`), short aliases (`-s`, `-a`), the standalone
-    permission switches, and `-c sandbox_mode=... / approval_policy=...`
-    config overrides in both `-c key=value` and `-c=key=value` spellings.
-    Option values are never mistaken for subcommands.
-    """
-    expecting_config_value = False
-    for token in tokens:
-        if expecting_config_value:
-            expecting_config_value = False
-            if _is_permission_config_key(token):
-                return True
-            continue
-        name, _, attached_value = token.partition('=')
-        if name == '-c' or name == '--config':
-            if attached_value:
-                if _is_permission_config_key(attached_value):
-                    return True
-            else:
-                expecting_config_value = True
-            continue
-        if _CODEX_PERMISSION_OVERRIDE_FLAGS.get(name) is not None:
-            return True
-    return False
-
-
-def _is_permission_config_key(value: str) -> bool:
-    key = str(value or '').partition('=')[0].strip().lower()
-    return key in _CODEX_PERMISSION_OVERRIDE_CONFIG_KEYS
-    return False
-
-
 def _remote_resume_blocked_by_permission_overrides(codex_args: list[str]) -> bool:
-    """True when a resume is requested together with permission overrides.
+    """True when a resume carries a permission override the app-server cannot take.
 
-    The Codex CLI refuses `resume <id>` under `--remote` whenever permission
-    override flags are present ("Permission overrides are not supported when
-    resuming a remote task"). CCB must not silently strip the requested
-    policy to force the remote path; instead the resume runs on the native
-    local CLI where the policy stays effective (#346).
+    Translatable overrides move to the managed app-server (see
+    `split_permission_overrides`); the rest keep the resume on the native local
+    CLI so the requested policy stays effective (#346).
     """
     index = _continuation_subcommand_index(codex_args, 0)
     return bool(
         index is not None
         and codex_args[index] == 'resume'
         and index + 2 == len(codex_args)
-        and _codex_permission_overrides_present(codex_args[:index])
+        and split_permission_overrides(codex_args[1:index]) is None
     )
 
 
