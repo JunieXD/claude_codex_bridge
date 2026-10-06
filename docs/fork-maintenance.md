@@ -81,6 +81,18 @@ Maintained Fork: https://github.com/JunieXD/claude_codex_bridge
   usage, and stops after a miss or unknown cost. See
   [the experimental feature guide](claude-cache-keepalive.md) for limits and
   relay caveats.
+- Managed Codex keeps the managed app-server after a restart that resumes with
+  `--ask-for-approval`/`--sandbox`: the policy is passed to the app-server as
+  config, because `codex --remote ... resume` rejects permission flags. Active
+  followups (`ccb followup`) therefore keep working on resumed agents. Only
+  `--approve-for-me`, which has no config equivalent, still resumes locally.
+- A managed Claude agent shares the user's auto memory for its working
+  directory (`~/.claude/projects/<key>/memory`) through a link, so CCB and
+  ordinary Claude sessions remember the same things. Existing private memory
+  moves over unless a file name conflicts; conflicting memories stay separate.
+- A managed Claude agent uses the user's `~/.gitconfig`, `~/.config/gh` and
+  `~/.docker` through `GIT_CONFIG_GLOBAL`, `GH_CONFIG_DIR` and `DOCKER_CONFIG`
+  instead of empty defaults in its private `HOME`. Explicit caller values win.
 
 ## Existing managed Claude settings
 

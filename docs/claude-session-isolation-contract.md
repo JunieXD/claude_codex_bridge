@@ -491,6 +491,10 @@ separate worlds:
 - the managed agent must use its agent-scoped private `HOME`
 - shared `cwd` or matching request text does not merge their conversations
 
+Exception (JunieXD Fork): auto memory is not a conversation. The managed
+agent's `projects/<key>/memory` links to the user's own memory for the same
+working directory, so both worlds share remembered facts but never transcripts.
+
 ## 7. Compatibility Contract
 
 To avoid breaking restore for older managed sessions, startup may reuse and

@@ -40,6 +40,7 @@ from provider_core.projected_assets import (
 )
 from provider_core.projected_settings import rebase_json_path_fields
 from provider_core.source_home import current_provider_source_home
+from provider_backends.claude.launcher_runtime.history import project_key
 from provider_profiles import provider_api_env_keys
 from rolepacks.projection import project_role_skills_to_home
 from cli.services.role_command_policy import (
@@ -163,6 +164,7 @@ def prepare_claude_home_overrides(
         'CLAUDE_PROJECT_ROOT': str(layout.projects_root),
         'CLAUDE_SESSION_ENV_ROOT': str(layout.session_env_root),
     }
+    overrides.update(_user_tool_config_environment(source_root))
     overrides.update(
         _claude_plugin_environment(
             source_root,
@@ -193,6 +195,24 @@ def prepare_claude_home_overrides(
             overrides['WSLENV'] = wslenv_additions
 
     return overrides
+
+
+# HOME points at the managed home. Keep the user's own developer tool
+# configuration (git credential helpers, gh auth, docker contexts and CLI
+# plugins) rather than the empty defaults an agent-private HOME would give.
+_USER_TOOL_CONFIG = (
+    ('GIT_CONFIG_GLOBAL', Path('.gitconfig')),
+    ('GH_CONFIG_DIR', Path('.config') / 'gh'),
+    ('DOCKER_CONFIG', Path('.docker')),
+)
+
+
+def _user_tool_config_environment(source_home: Path) -> dict[str, str]:
+    return {
+        name: str(source_home / relative)
+        for name, relative in _USER_TOOL_CONFIG
+        if name not in os.environ and (source_home / relative).exists()
+    }
 
 
 def _claude_plugin_environment(
@@ -444,8 +464,39 @@ def _materialize_inherited_assets(
         agent_name=agent_name,
         workspace_path=workspace_path,
     )
+    if _inherits_memory(profile) and (workspace_path or project_root) is not None:
+        _share_project_auto_memory(source_home, target_layout, Path(workspace_path or project_root))
     _materialize_home_hook_assets(source_home, target_layout, profile=profile)
     return memory_result
+
+
+def _share_project_auto_memory(
+    source_home: Path,
+    target_layout: ClaudeHomeLayout,
+    work_dir: Path,
+) -> None:
+    """Link the agent's auto memory for *work_dir* to the user's own.
+
+    CCB and ordinary Claude sessions in the same directory then read and write
+    one memory. An existing private memory moves over unless the user's
+    memory already has a file of the same name; then both stay as they are.
+    """
+    key = project_key(work_dir)
+    shared = source_home / '.claude' / 'projects' / key / 'memory'
+    private = target_layout.claude_dir / 'projects' / key / 'memory'
+    if private.is_symlink():
+        return
+    if private.is_dir():
+        entries = list(private.iterdir())
+        if any((shared / entry.name).exists() for entry in entries):
+            return
+        shared.mkdir(parents=True, exist_ok=True)
+        for entry in entries:
+            shutil.move(entry, shared / entry.name)
+        private.rmdir()
+    shared.mkdir(parents=True, exist_ok=True)
+    private.parent.mkdir(parents=True, exist_ok=True)
+    private.symlink_to(shared, target_is_directory=True)
 
 
 def _materialize_claude_memory(

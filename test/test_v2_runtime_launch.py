@@ -338,6 +338,54 @@ def test_claude_home_overrides_wsl_exports_paths_and_api_env_names(
     assert wslenv[-1] == 'EXISTING/u'
 
 
+def test_claude_home_overrides_keep_user_tool_config(monkeypatch, tmp_path: Path) -> None:
+    source_home = tmp_path / 'user-home'
+    (source_home / '.config' / 'gh').mkdir(parents=True)
+    (source_home / '.gitconfig').write_text('[user]\n', encoding='utf-8')
+    monkeypatch.setenv('CCB_SOURCE_HOME', str(source_home))
+    monkeypatch.delenv('GIT_CONFIG_GLOBAL', raising=False)
+    monkeypatch.setenv('GH_CONFIG_DIR', '/explicit/gh')
+    monkeypatch.delenv('DOCKER_CONFIG', raising=False)
+
+    overrides = prepare_claude_home_overrides_for_test(tmp_path / 'runtime', None, refresh_home=False)
+
+    assert overrides['GIT_CONFIG_GLOBAL'] == str(source_home / '.gitconfig')
+    # An explicit caller setting is inherited unchanged; missing configs are not invented.
+    assert 'GH_CONFIG_DIR' not in overrides
+    assert 'DOCKER_CONFIG' not in overrides
+
+
+def test_claude_auto_memory_is_shared_with_user_home(tmp_path: Path) -> None:
+    from types import SimpleNamespace
+    from provider_backends.claude.launcher_runtime.home import _share_project_auto_memory
+
+    source_home = tmp_path / 'user-home'
+    work_dir = Path('/work/repo-a')
+    layout = SimpleNamespace(claude_dir=tmp_path / 'agent-home' / '.claude')
+    private = layout.claude_dir / 'projects' / '-work-repo-a' / 'memory'
+    shared = source_home / '.claude' / 'projects' / '-work-repo-a' / 'memory'
+    private.mkdir(parents=True)
+    (private / 'note.md').write_text('private note\n', encoding='utf-8')
+
+    _share_project_auto_memory(source_home, layout, work_dir)
+    _share_project_auto_memory(source_home, layout, work_dir)
+
+    assert private.is_symlink() and private.resolve() == shared.resolve()
+    assert (shared / 'note.md').read_text(encoding='utf-8') == 'private note\n'
+
+    other = layout.claude_dir / 'projects' / '-work-repo-b' / 'memory'
+    other.mkdir(parents=True)
+    (other / 'MEMORY.md').write_text('agent index\n', encoding='utf-8')
+    (source_home / '.claude' / 'projects' / '-work-repo-b' / 'memory').mkdir(parents=True)
+    (source_home / '.claude' / 'projects' / '-work-repo-b' / 'memory' / 'MEMORY.md').write_text('user index\n', encoding='utf-8')
+
+    _share_project_auto_memory(source_home, layout, Path('/work/repo-b'))
+
+    # Conflicting memories are never merged or overwritten.
+    assert not other.is_symlink()
+    assert (other / 'MEMORY.md').read_text(encoding='utf-8') == 'agent index\n'
+
+
 def test_codex_home_overrides_pin_sqlite_and_windows_home(
     monkeypatch,
     tmp_path: Path,
