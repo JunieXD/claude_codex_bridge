@@ -21,7 +21,8 @@ def usage_counts(value: object) -> dict[str, int] | None:
     return result
 
 
-def transcript_usage(path: Path, *, projects_root: Path, session_id: str, expected: dict, request_started_at: float) -> dict:
+def transcript_usage(path: Path, *, projects_root: Path, session_id: str, model: str, expected: dict,
+                     request_started_at: float) -> dict:
     if path.name != f'{session_id}.jsonl' or not path.resolve().is_relative_to(projects_root.resolve()):
         return {'reason': 'transcript_outside_session'}
     try:
@@ -46,7 +47,7 @@ def transcript_usage(path: Path, *, projects_root: Path, session_id: str, expect
             message = row.get('message') or {}
             usage = usage_counts(message.get('usage'))
             expected_usage = usage_counts(expected)
-            if usage is None or expected_usage is None or message.get('model') != expected.get('model'):
+            if usage is None or expected_usage is None or message.get('model') != model:
                 return {'reason': 'missing_usage'}
             if any(usage[name] != expected_usage[name] for name in USAGE_FIELDS if name != 'output_tokens'):
                 return {'reason': 'usage_mismatch'}

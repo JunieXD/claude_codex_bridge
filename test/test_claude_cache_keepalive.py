@@ -334,7 +334,7 @@ def test_real_bridge_socket_usage_lease_and_log_integration(rig, tmp_path):
         return json.loads(result.stdout)
 
     try:
-        observation = call('observe', transcript_path=str(transcript), main_usage={**counts, 'model': 'claude-opus-5-5'})
+        observation = call('observe', transcript_path=str(transcript), main_usage=counts)
         assert observation['reason'] == 'verified_usage'
         lease = call('acquire')
         assert lease['allowed'] and lease['attempt_count'] == 1

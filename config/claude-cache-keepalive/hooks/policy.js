@@ -3,7 +3,7 @@ export const DEFAULTS = Object.freeze({
   expiryMs: 58 * 60_000,
   pollMs: 60_000,
   minContextTokens: 20_000,
-  maxContextTokens: 250_000,
+  maxContextTokens: 1_000_000,
   maxAttempts: 8,
   maxOutputTokens: 2_048,
   minReadRatio: 0.95,

@@ -13,7 +13,7 @@ def usage(**overrides):
             'cache_read_input_tokens': 0, **overrides}
 
 
-def probe(tmp_path: Path, *, raw=None, **row_overrides):
+def probe(tmp_path: Path, *, raw=None, model='claude-opus-5-5', **row_overrides):
     root = tmp_path / 'projects'
     root.mkdir(exist_ok=True)
     path = root / 'session.jsonl'
@@ -21,8 +21,9 @@ def probe(tmp_path: Path, *, raw=None, **row_overrides):
     row = {'type': 'assistant', 'sessionId': 'session', 'timestamp': '2026-10-05T00:00:01Z',
            'message': {'model': 'claude-opus-5-5', 'usage': raw}, **row_overrides}
     path.write_text(json.dumps(row) + '\n')
-    return transcript_usage(path, projects_root=root, session_id='session',
-                            expected={**usage(), 'model': 'claude-opus-5-5'}, request_started_at=1791158400000)
+    # The mod reports Claude Code's raw usage, which carries no model name.
+    return transcript_usage(path, projects_root=root, session_id='session', model=model,
+                            expected=usage(), request_started_at=1791158400000)
 
 
 def test_extracts_only_real_usage_with_ttl(tmp_path):
@@ -46,6 +47,7 @@ def test_old_or_sidechain_records_cannot_prove_ttl(tmp_path):
     assert probe(tmp_path, timestamp='2026-10-04T00:00:01Z')['reason'] == 'stale_usage'
     assert probe(tmp_path, isSidechain=True)['reason'] == 'missing_usage'
     assert probe(tmp_path, sessionId='other')['reason'] == 'transcript_identity_mismatch'
+    assert probe(tmp_path, model='claude-sonnet-5-5')['reason'] == 'missing_usage'
 
 
 def test_paths_cannot_escape_project_transcripts(tmp_path):
@@ -56,7 +58,7 @@ def test_paths_cannot_escape_project_transcripts(tmp_path):
     root.mkdir()
     link = root / 'session.jsonl'
     link.symlink_to(target)
-    assert transcript_usage(link, projects_root=root, session_id='session', expected={}, request_started_at=1)['reason'] == 'transcript_outside_session'
+    assert transcript_usage(link, projects_root=root, session_id='session', model='claude-opus-5-5', expected={}, request_started_at=1)['reason'] == 'transcript_outside_session'
 
 
 @pytest.mark.parametrize('value', [None, {}, usage(input_tokens=-1), usage(output_tokens=1.5)])

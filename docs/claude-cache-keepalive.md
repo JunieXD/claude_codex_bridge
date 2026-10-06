@@ -140,7 +140,7 @@ local timer without reusing old TTL proof.
   being retried. Launch/session fences reject stale processes.
 - At most eight acquired attempts per current native session, and stop future
   requests after 2,048 cumulative output tokens. Main turns do not reset those
-  budgets. Eligible contexts contain 20,000–250,000 input tokens.
+  budgets. Eligible contexts contain 20,000–1,000,000 input tokens.
 - Require at least a 95% cache-read hit and at most 5% uncached/newly cached tail.
   Stop on the first miss, API failure, missing usage or excessive output.
 - A pause, new main turn, session/model change or child completion prevents later

@@ -35,6 +35,7 @@ def main() -> int:
                 Path(payload.pop('transcript_path')),
                 projects_root=Path(projects_root),
                 session_id=str(payload['session_id']),
+                model=payload.get('model'),
                 expected=payload.pop('main_usage'),
                 request_started_at=float(payload['request_started_at']),
             )
