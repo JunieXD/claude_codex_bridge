@@ -870,7 +870,7 @@ install_mobile_relay_dependencies_for_python() {
   fi
 
   local pip_log pip_log_cleanup=0
-  pip_log="$(mktemp "${TMPDIR:-/tmp}/ccb-mobile-relay-pip.XXXXXX.log" 2>/dev/null || mktemp "/tmp/ccb-mobile-relay-pip.XXXXXX.log" 2>/dev/null || true)"
+  pip_log="$(mktemp "${TMPDIR:-/tmp}/ccb-mobile-relay-pip.XXXXXX" 2>/dev/null || mktemp "/tmp/ccb-mobile-relay-pip.XXXXXX" 2>/dev/null || true)"
   if [[ -z "$pip_log" ]]; then
     pip_log="/dev/null"
   else
@@ -915,7 +915,7 @@ install_tomli_into_virtualenv() {
   python_path="$("$PYTHON_BIN" -c 'import sys; print(sys.executable)' 2>/dev/null || command -v "$PYTHON_BIN" 2>/dev/null || echo "$PYTHON_BIN")"
 
   local pip_log pip_log_cleanup=0 last_failure=""
-  pip_log="$(mktemp "${TMPDIR:-/tmp}/ccb-tomli-pip.XXXXXX.log" 2>/dev/null || mktemp "/tmp/ccb-tomli-pip.XXXXXX.log" 2>/dev/null || true)"
+  pip_log="$(mktemp "${TMPDIR:-/tmp}/ccb-tomli-pip.XXXXXX" 2>/dev/null || mktemp "/tmp/ccb-tomli-pip.XXXXXX" 2>/dev/null || true)"
   if [[ -z "$pip_log" ]]; then
     pip_log="/dev/null"
   else
@@ -998,7 +998,7 @@ install_tomli() {
   fi
 
   local pip_log pip_log_cleanup=0
-  pip_log="$(mktemp "${TMPDIR:-/tmp}/ccb-tomli-pip.XXXXXX.log" 2>/dev/null || mktemp "/tmp/ccb-tomli-pip.XXXXXX.log" 2>/dev/null || true)"
+  pip_log="$(mktemp "${TMPDIR:-/tmp}/ccb-tomli-pip.XXXXXX" 2>/dev/null || mktemp "/tmp/ccb-tomli-pip.XXXXXX" 2>/dev/null || true)"
   if [[ -z "$pip_log" ]]; then
     pip_log="/dev/null"
   else
@@ -1069,7 +1069,7 @@ install_watchdog_into_virtualenv() {
   python_path="$("$PYTHON_BIN" -c 'import sys; print(sys.executable)' 2>/dev/null || command -v "$PYTHON_BIN" 2>/dev/null || echo "$PYTHON_BIN")"
 
   local pip_log pip_log_cleanup=0 last_failure=""
-  pip_log="$(mktemp "${TMPDIR:-/tmp}/ccb-watchdog-pip.XXXXXX.log" 2>/dev/null || mktemp "/tmp/ccb-watchdog-pip.XXXXXX.log" 2>/dev/null || true)"
+  pip_log="$(mktemp "${TMPDIR:-/tmp}/ccb-watchdog-pip.XXXXXX" 2>/dev/null || mktemp "/tmp/ccb-watchdog-pip.XXXXXX" 2>/dev/null || true)"
   if [[ -z "$pip_log" ]]; then
     pip_log="/dev/null"
   else
@@ -1157,7 +1157,7 @@ install_watchdog() {
 
   # 2. Try standard pip install --user
   local pip_log pip_log_cleanup=0
-  pip_log="$(mktemp "${TMPDIR:-/tmp}/ccb-watchdog-pip.XXXXXX.log" 2>/dev/null || mktemp "/tmp/ccb-watchdog-pip.XXXXXX.log" 2>/dev/null || true)"
+  pip_log="$(mktemp "${TMPDIR:-/tmp}/ccb-watchdog-pip.XXXXXX" 2>/dev/null || mktemp "/tmp/ccb-watchdog-pip.XXXXXX" 2>/dev/null || true)"
   if [[ -z "$pip_log" ]]; then
     pip_log="/dev/null"
   else
@@ -1916,7 +1916,7 @@ install_managed_venv() {
   fi
   if [[ "$refresh_pip" -eq 1 ]]; then
     local pip_log pip_log_cleanup=0
-    pip_log="$(mktemp "${TMPDIR:-/tmp}/ccb-pip-upgrade.XXXXXX.log" 2>/dev/null || mktemp "/tmp/ccb-pip-upgrade.XXXXXX.log" 2>/dev/null || true)"
+    pip_log="$(mktemp "${TMPDIR:-/tmp}/ccb-pip-upgrade.XXXXXX" 2>/dev/null || mktemp "/tmp/ccb-pip-upgrade.XXXXXX" 2>/dev/null || true)"
     if [[ -z "$pip_log" ]]; then
       pip_log="/dev/null"
     else

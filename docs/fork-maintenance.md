@@ -99,6 +99,9 @@ Maintained Fork: https://github.com/JunieXD/claude_codex_bridge
   ordinary Claude or Codex sessions never read it. It is projected after the
   provider's own user memory and before project memory. Per project, use
   `.ccb/ccb_memory.md` (all agents) or `.ccb/agents/<agent>/memory.md`.
+- `install.sh` pip log templates end in `XXXXXX`. BSD `mktemp` leaves a
+  `XXXXXX.log` template unrandomized, so on macOS every install shared one
+  fixed log name: concurrent installs collided and lost their pip output.
 
 ## Existing managed Claude settings
 
