@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from agents.models import normalize_agent_name
+from provider_core.source_home import current_provider_source_home
 from storage.paths import PathLayout
 
 from .seed import project_memory_path
@@ -10,6 +11,7 @@ from .filters import filter_memory_source
 from .policy import (
     SOURCE_AGENT_PRIVATE,
     SOURCE_CCB_SHARED,
+    SOURCE_CCB_USER,
     SOURCE_PROVIDER_NATIVE_PROJECT,
     filters_for_source,
     should_include_source,
@@ -37,6 +39,11 @@ def provider_native_memory_path(project_root_or_layout, provider: str) -> Path |
     return layout.project_root / filename
 
 
+def ccb_user_memory_path(provider: str) -> Path:
+    """User-wide memory that only CCB-managed agents of *provider* receive."""
+    return current_provider_source_home() / '.ccb' / 'memory' / f'{str(provider).strip().lower()}.md'
+
+
 def load_memory_sources(
     project_root_or_layout,
     *,
@@ -49,6 +56,14 @@ def load_memory_sources(
     layout = _layout(project_root_or_layout)
     sources: list[ProjectMemorySource] = []
     sources.extend(_filter_sources(extra_sources, provider=provider))
+    sources.append(
+        _read_source(
+            kind=SOURCE_CCB_USER,
+            title='CCB User Memory',
+            path=ccb_user_memory_path(provider),
+            include_missing=False,
+        )
+    )
     sources.append(
         _read_source(
             kind=SOURCE_CCB_SHARED,
@@ -145,6 +160,7 @@ def _read_source(*, kind: str, title: str, path: Path, include_missing: bool) ->
 
 __all__ = [
     'agent_private_memory_path',
+    'ccb_user_memory_path',
     'load_memory_sources',
     'provider_native_memory_path',
     'read_memory_source',

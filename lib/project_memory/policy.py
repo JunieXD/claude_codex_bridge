@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 SOURCE_RUNTIME_COORDINATION_RULES = 'runtime_coordination_rules'
+SOURCE_CCB_USER = 'ccb_user'
 SOURCE_CCB_SHARED = 'ccb_shared'
 SOURCE_PROVIDER_USER_MEMORY = 'provider_user_memory'
 SOURCE_PROVIDER_NATIVE_PROJECT = 'provider_native_project'
@@ -51,6 +52,7 @@ def _policy(
         provider=provider,
         sources={
             SOURCE_RUNTIME_COORDINATION_RULES: MemorySourcePolicy(include_in_bundle=True),
+            SOURCE_CCB_USER: MemorySourcePolicy(include_in_bundle=True),
             SOURCE_CCB_SHARED: MemorySourcePolicy(include_in_bundle=True),
             SOURCE_PROVIDER_USER_MEMORY: MemorySourcePolicy(
                 include_in_bundle=True,

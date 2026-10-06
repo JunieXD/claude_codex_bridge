@@ -255,6 +255,26 @@ def test_load_memory_sources_can_skip_provider_native_project_memory(tmp_path: P
     assert 'project gemini memory' not in ''.join(source.content for source in skipped_sources)
 
 
+def test_load_memory_sources_reads_ccb_user_memory_per_provider(tmp_path: Path, monkeypatch) -> None:
+    home = tmp_path / 'home'
+    (home / '.ccb' / 'memory').mkdir(parents=True)
+    (home / '.ccb' / 'memory' / 'claude.md').write_text('claude under ccb\n', encoding='utf-8')
+    monkeypatch.setenv('CCB_SOURCE_HOME', str(home))
+    project_root = tmp_path / 'repo'
+    project_root.mkdir()
+    _write_project_memory(project_root, 'shared memory\n')
+
+    claude = load_memory_sources(project_root, agent_name='Agent1', provider='claude')
+    codex = load_memory_sources(project_root, agent_name='Agent2', provider='codex')
+
+    assert [(source.kind, source.content) for source in claude[:2]] == [
+        ('ccb_user', 'claude under ccb\n'),
+        ('ccb_shared', 'shared memory\n'),
+    ]
+    # A missing file adds nothing, so existing bundles stay unchanged.
+    assert 'ccb_user' not in [source.kind for source in codex]
+
+
 def test_provider_memory_policy_excludes_native_project_for_duplicate_loading_providers() -> None:
     assert should_include_source('claude', 'provider_native_project') is False
     assert should_include_source('codex', 'provider_native_project') is False
