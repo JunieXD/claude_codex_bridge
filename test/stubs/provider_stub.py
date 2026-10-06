@@ -1746,6 +1746,13 @@ def main(argv: list[str]) -> int:
         print(f"[stub] unknown provider: {provider}", file=sys.stderr)
         return 2
 
+    # Capability probes (`codex --version`, `codex app-server --help`, ...)
+    # must not register as a provider launch. Answer like a CLI without
+    # Codex app-server or fork support.
+    if "--version" in provider_arguments or "--help" in provider_arguments:
+        print(f"{provider}-stub")
+        return 0
+
     launch_probe: _LaunchProbe | None = None
     try:
         launch_probe = _LaunchProbe(provider, cli_overrides=launch_probe_overrides)
