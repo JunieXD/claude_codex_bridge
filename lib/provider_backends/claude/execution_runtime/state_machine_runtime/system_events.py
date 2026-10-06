@@ -10,6 +10,7 @@ from completion.models import (
     CompletionItemKind,
     CompletionStatus,
 )
+from provider_core.claude_prompt import unwrap_claude_pasted_prompt
 from provider_execution.base import ProviderPollResult, ProviderSubmission
 from provider_execution.common import build_item
 
@@ -72,7 +73,7 @@ def has_outer_request_anchor(text: str, *, request_anchor: str) -> bool:
     from ...protocol import REQ_ID_PREFIX
 
     pattern = rf"^\s*{re.escape(REQ_ID_PREFIX)}\s*{re.escape(request_anchor)}(?=\s|$)"
-    return re.search(pattern, str(text or ""), flags=re.IGNORECASE) is not None
+    return re.search(pattern, unwrap_claude_pasted_prompt(text), flags=re.IGNORECASE) is not None
 
 
 def is_top_level_user_prompt(event: dict[str, object] | None) -> bool:

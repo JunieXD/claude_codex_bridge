@@ -5,6 +5,7 @@ from pathlib import Path
 import re
 from typing import Any
 
+from provider_core.claude_prompt import unwrap_claude_pasted_prompt
 from provider_core.protocol import ANY_REQ_ID_PATTERN, REQ_ID_BOUNDARY_PATTERN
 
 REQ_ID_RE = re.compile(rf'CCB_REQ_ID:\s*({ANY_REQ_ID_PATTERN}){REQ_ID_BOUNDARY_PATTERN}', re.IGNORECASE)
@@ -19,7 +20,7 @@ def extract_req_id(text: str) -> str | None:
 
 
 def extract_outer_req_id(text: str) -> str | None:
-    match = OUTER_REQ_ID_RE.search(str(text or ''))
+    match = OUTER_REQ_ID_RE.search(unwrap_claude_pasted_prompt(text))
     if not match:
         return None
     return str(match.group(1) or '').strip() or None

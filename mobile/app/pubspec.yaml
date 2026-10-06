@@ -1,7 +1,7 @@
 name: ccb_mobile
 description: Native mobile controller for server-side CCB tmux projects.
 publish_to: "none"
-version: 8.7.5+8070005
+version: 8.7.6+8070006
 
 environment:
   sdk: ">=3.7.0 <4.0.0"

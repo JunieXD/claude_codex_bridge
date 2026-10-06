@@ -1,0 +1,18 @@
+[
+  {
+    "provider": "codex",
+    "case": "default_status",
+    "version": "0.156.1",
+    "text": "\u001b[0;2m╭──────────────────────────────────────────────────╮\u001b[0m\n\u001b[0;2m│ >_ \u001b[0mOpenAI Codex\u001b[0;2m (v0.156.1)                       │\u001b[0m\n\u001b[0;2m│                                                  │\u001b[0m\n\u001b[0;2m│ model:     \u001b[0mGPT-6-Sol\u001b[0;2m   \u001b[0m/model\u001b[0;2m to change          │\u001b[0m\n\u001b[0;2m│ directory: \u001b[0m~/yunwei/…/status-boundaries-01561-v2\u001b[0;2m │\u001b[0m\n\u001b[0;2m╰──────────────────────────────────────────────────╯\u001b[0m\n\u001b[0m\n\u001b[0m  Tip: New Build faster with Codex.\n\u001b[0m\n\u001b[0m\n\u001b[0m› \u001b[0;2mAsk Codex to do anything\u001b[0m\n\u001b[0m\n\u001b[0m  GPT-6-Sol default · ~/yunwei/test_ccb2/issue356-20261005/status-boundaries-01561-v2\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m",
+    "cursor_x": 2,
+    "cursor_y": 10
+  },
+  {
+    "provider": "codex",
+    "case": "context_status",
+    "version": "0.156.1",
+    "text": "\u001b[0;2m╭──────────────────────────────────────────────────────╮\u001b[0m\n\u001b[0;2m│ >_ \u001b[0mOpenAI Codex\u001b[0;2m (v0.156.1)                           │\u001b[0m\n\u001b[0;2m│                                                      │\u001b[0m\n\u001b[0;2m│ model:     \u001b[0mGPT-6-Sol\u001b[0;2m   \u001b[0m/model\u001b[0;2m to change              │\u001b[0m\n\u001b[0;2m│ directory: \u001b[0m~/…/issue356-20261005/fixed-context-01561\u001b[0;2m │\u001b[0m\n\u001b[0;2m╰──────────────────────────────────────────────────────╯\u001b[0m\n\u001b[0m\n\u001b[0m  Tip: New Build faster with Codex.\n\u001b[0m\n\u001b[0m\n\u001b[0m› \u001b[0;2mAsk Codex to do anything\u001b[0m\n\u001b[0m\n\u001b[0m  Context 100% left\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m\n\u001b[0m",
+    "cursor_x": 2,
+    "cursor_y": 10
+  }
+]

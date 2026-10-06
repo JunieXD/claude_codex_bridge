@@ -77,7 +77,7 @@ def inspect_screen(provider: str, screen: dict, *, binding: str) -> Observation:
             return result('unknown', 'provider_busy')
         # Default main composer has a status footer below the cursor. Selection
         # menus use the same arrow; their confirmation footer is not accepted.
-        footer = _codex_footer(lines, styled, screen['text'].split('\n'), cursor_y)
+        footer = _codex_footer(lines, styled, screen['text'].split('\n'), cursor_x, cursor_y)
         if footer is None:
             return result('unknown', 'composer_layout_unknown')
         if _editor_mode_in_footer(lines[footer:]):
@@ -123,7 +123,7 @@ def inspect_screen(provider: str, screen: dict, *, binding: str) -> Observation:
     return result('nonempty', 'claude_draft')
 
 
-def _codex_footer(lines, styled, raw, cursor_y: int) -> int | None:
+def _codex_footer(lines, styled, raw, cursor_x: int, cursor_y: int) -> int | None:
     # The status bar is the last nonblank row, separated from the editor by
     # a blank row. Its configurable labels (including model names) are opaque.
     footer = next((i for i in range(len(lines)-1, cursor_y, -1) if lines[i].strip()), None)
@@ -144,10 +144,23 @@ def _codex_footer(lines, styled, raw, cursor_y: int) -> int | None:
         return None
     if paired or re.match(r'^  (?:\d+% [Cc]ontext\b|\? for shortcuts\b)', row):
         return footer
+    if re.fullmatch(r'  Context (?:100|[1-9]?\d)% left *', row):
+        return footer
     # Custom status bars separate fields with a dim middle dot. Require the
     # rendering attribute as well as spacing; ordinary draft prose is not a
     # status bar just because it contains a dot or a model-like word.
     if _codex_status_row(row, styled[footer]):
+        return footer
+    # New native status bars need not dim their separators, and may contain
+    # only one configured field. Authorize only the EMPTY native composer in
+    # that layout: exact dim placeholder, initial cursor, no continuation text.
+    # Plain draft prose and arbitrary model labels cannot establish a boundary
+    # for clearing nonempty input. Unknown draft layouts still fail closed.
+    if (cursor_x == 2
+            and lines[cursor_y][:2] in ('› ', '» ')
+            and lines[cursor_y][2:].rstrip(' ') == 'Ask Codex to do anything'
+            and all(dim for char, dim, _ in styled[cursor_y][2:] if not char.isspace())
+            and all(not line.strip() for line in lines[cursor_y+1:footer])):
         return footer
     return None
 

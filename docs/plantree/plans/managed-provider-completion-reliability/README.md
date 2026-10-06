@@ -10,6 +10,10 @@ behavior, and diagnostics.
 
 Current active incidents:
 
+- Issue #354: [Claude pasted envelope repair](topics/issue-354-pasted-envelope.md);
+  isolated candidate verified with real native turns and 735 passing regressions;
+  [evidence and remaining deployment gate](evidence/issue-354-live-20261005.md).
+
 - Issues #345–#348: Codex app-server lifecycle, remote resume/clear reporting,
   terminal error propagation, and Kimi timeout environment filtering. See the
   [repair plan](topics/issues-345-348-repair.md) for current scope and gates.

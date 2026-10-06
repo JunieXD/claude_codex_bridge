@@ -6,7 +6,7 @@
 **Codex、Claude、Gemini などの CLI Agent を、見える・制御できる・直接引き継げるワークフローで連携**
 
 <p>
-  <img src="https://img.shields.io/badge/version-8.7.5-orange.svg" alt="version">
+  <img src="https://img.shields.io/badge/version-8.7.6-orange.svg" alt="version">
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20WSL-lightgrey.svg" alt="platform">
   <img src="https://img.shields.io/badge/providers-16%20CLI%20families-0B7285.svg" alt="providers">
 </p>
@@ -184,7 +184,7 @@ ccb update mobile
 
 CCB 8.6.6 では Flutter 版 CCB Mobile のソースが [`mobile/`](../mobile/) に含まれ、Android APK は GitHub Releases で公開されています。
 
-- [CCB Mobile v8.7.5 APK をダウンロード](https://github.com/SeemSeam/claude_codex_bridge/releases/download/v8.7.5/ccb-mobile-v8.7.5.apk)
+- [CCB Mobile v8.7.6 APK をダウンロード](https://github.com/SeemSeam/claude_codex_bridge/releases/download/v8.7.6/ccb-mobile-v8.7.6.apk)
 - App ソース：[`mobile/app`](../mobile/app)
 - サーバー gateway ソース：[`lib/mobile_gateway`](../lib/mobile_gateway)
 
@@ -263,6 +263,15 @@ sidebar のアイデアと示唆を提供してくれた [tmux-agent-sidebar](ht
 ## リリースノート
 
 <details open>
+<summary><b>v8.7.6</b> - Claude/Codex delivery reliability</summary>
+
+Recognize native Claude pasted envelopes and empty Codex composers with newer status bars; preserve draft protection.
+
+[Full bilingual notes](../docs/releases/v8.7.6.md).
+
+</details>
+
+<details>
 <summary><b>v8.7.5</b> - Safe OMP/Pi model selection</summary>
 
 [Full bilingual notes](../docs/releases/v8.7.5.md).

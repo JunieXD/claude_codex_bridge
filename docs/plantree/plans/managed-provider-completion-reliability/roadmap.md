@@ -4,6 +4,11 @@ Date: 2026-06-12
 
 ## Status Summary
 
+2026-10-05: Issue #354 isolated candidate fixes both Claude pasted-envelope
+anchor consumers. Real native short/long turns, actual Stop hooks and polling
+replays pass; automated regressions: 735 passed, 1 skipped. Not deployed. See [evidence](evidence/issue-354-live-20261005.md); full mounted
+ask/mailbox/callback smoke remains a pre-deployment gate.
+
 2026-09-14 current maintenance slice: [Issues #345–#348 repair](topics/issues-345-348-repair.md).
 Implementation, testing, commit, issue replies, and v8.6.17 publication are
 complete (evidence:

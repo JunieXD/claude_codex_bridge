@@ -6,7 +6,7 @@
 **Coordinate Codex, Claude, Gemini, and other CLI agents in visible, controllable workflows you can take over**
 
 <p>
-  <img src="https://img.shields.io/badge/version-8.7.5-orange.svg" alt="version">
+  <img src="https://img.shields.io/badge/version-8.7.6-orange.svg" alt="version">
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20WSL%20%7C%20Windows%20beta-lightgrey.svg" alt="platform">
   <img src="https://img.shields.io/badge/providers-16%20CLI%20families-0B7285.svg" alt="providers">
 </p>
@@ -51,6 +51,10 @@
 - The background daemon keeps project state alive even when the foreground UI is closed.
 - Hub capability: run multiple CLI providers concurrently from one command.
 - Mobile remote controller: cross-provider voice control, file transfer, and remote terminal access.
+
+## New in 8.7.6: Claude/Codex Delivery Reliability
+
+Recognize native Claude pasted envelopes and empty Codex composers with newer status bars; preserve draft protection. [Notes](docs/releases/v8.7.6.md).
 
 ## New in 8.7.5: Safe OMP/Pi Model Selection
 
@@ -332,9 +336,9 @@ This command guides installation and configuration.
 <details>
 <summary><b>Mobile App details, safety boundary, and source</b></summary>
 
-CCB 8.7.5 includes the Flutter CCB Mobile source in [`mobile/`](mobile/) and publishes the Android APK through GitHub Releases:
+CCB 8.7.6 includes the Flutter CCB Mobile source in [`mobile/`](mobile/) and publishes the Android APK through GitHub Releases:
 
-- [Download CCB Mobile v8.7.5 APK](https://github.com/SeemSeam/claude_codex_bridge/releases/download/v8.7.5/ccb-mobile-v8.7.5.apk)
+- [Download CCB Mobile v8.7.6 APK](https://github.com/SeemSeam/claude_codex_bridge/releases/download/v8.7.6/ccb-mobile-v8.7.6.apk)
 - App source: [`mobile/app`](mobile/app)
 - Server gateway source: [`lib/mobile_gateway`](lib/mobile_gateway)
 
@@ -423,6 +427,15 @@ Thanks to [tmux-agent-sidebar](https://github.com/hiroppy/tmux-agent-sidebar) fo
 ## Release Notes
 
 <details open>
+<summary><b>v8.7.6</b> - Claude/Codex delivery reliability</summary>
+
+Recognize native Claude pasted envelopes and empty Codex composers with newer status bars; preserve draft protection.
+
+[Full bilingual notes](docs/releases/v8.7.6.md).
+
+</details>
+
+<details>
 <summary><b>v8.7.5</b> - Safe OMP/Pi model selection</summary>
 
 [Full bilingual notes](docs/releases/v8.7.5.md).

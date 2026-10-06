@@ -54,6 +54,19 @@ socket after a crash and preserved FIFO through a real 180-second draft wait.
 OMP model completion remains unverified because the configured service returned
 402 (insufficient balance); delivery was independently confirmed.
 
+## v8.7.6 publication
+
+[Publication verification](evidence/release-876-verification-20261006.md):
+Claude/Codex repairs published to GitHub and npm; fresh installation verified.
+Post-push macOS timeout and bounded rerun are tracked explicitly.
+
+## Issue 356 follow-up
+
+[2026-10-05 submission-stall investigation](topics/issue-356-submit-stall.md):
+isolated native reproduction of pasted-but-unsubmitted Codex requests. A distinct
+status-bar pre-send bug is repaired locally; [237 regressions and native/remote
+verification](evidence/codex-status-bar-20261005.md) pass. Local source commit only; not deployed.
+
 ## Current Input-Guard Slice
 
 The owner requested a local v8.7.0 source commit and bilingual README coverage

@@ -6,6 +6,11 @@ Last updated: 2026-09-20
 
 ## Current Slice: Unified FIFO And Empty-Result Notices
 
+2026-10-05: [Codex status-bar compatibility repair](evidence/codex-status-bar-20261005.md)
+is implemented and verified locally (237 regressions, native guarded matrix and
+remote turn). Empty custom status rows no longer strand the guard. The owner authorized a
+local commit on 2026-10-06; deployment is not included; issue 356 post-paste reproduction remains open.
+
 v8.7.3 is published; [qualification](evidence/release-873-verification-20260928.md)
 records merged source, passing candidate gates, public hashes and a fresh npm
 installation with verified six-role recommendation filtering. No native Claude

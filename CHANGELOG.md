@@ -1,5 +1,13 @@
 # Changelog
 
+## v8.7.6 (2026-10-06)
+
+- Recognize native Claude pasted request envelopes across anchor, lifecycle and stop-hook paths (#354).
+- Release empty Codex composers with newer custom/context status bars while preserving draft, busy and menu guards.
+- The post-paste symptom in #356 remains unconfirmed; experimental PR #366 is excluded.
+- 修复 Claude 原生粘贴包装与 Codex 空输入状态栏识别，保留草稿保护；#356 未复现部分继续跟进，未包含 PR #366。
+- [Full bilingual notes](docs/releases/v8.7.6.md).
+
 ## v8.7.5 (2026-09-30)
 
 - Keep OMP/Pi asks bound when `/model` or another control-only input event opens a native selector.
