@@ -684,6 +684,8 @@ def test_render_queue_includes_runtime_health_fields() -> None:
         'observer_notice: weak observer surface; non-terminal state may change; use ccb trace <id> for lineage when needed',
         'target: codex',
         'agent_name: codex',
+        'task_status: None',
+        'task_status_warning: False',
         'mailbox_id: mbx_codex',
         'summary_status: ok',
         'execution_phase: blocked',

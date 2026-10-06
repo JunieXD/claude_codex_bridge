@@ -4,6 +4,7 @@ import os
 import shutil
 import shlex
 import subprocess
+import sys
 import textwrap
 from pathlib import Path
 
@@ -26,6 +27,9 @@ def _run_install_snippet(
             "CODEX_BIN_DIR": str(tmp_path / "bin"),
             "CCB_LANG": "en",
             "CCB_INSTALL_ASSUME_YES": "1",
+            # macOS login shells put /usr/bin (Python 3.9) first on PATH;
+            # build test venvs from the interpreter running the suite.
+            "TEST_PYTHON": sys.executable,
         }
     )
     command = textwrap.dedent(
@@ -282,7 +286,7 @@ def test_install_tomli_for_python_uses_real_virtualenv_scope(tmp_path: Path) -> 
         venv_dir="$HOME/managed-venv"
         fake_modules="$HOME/fake-modules"
         pip_argv_marker="$HOME/tomli-pip-argv.txt"
-        python3 -m venv "$venv_dir"
+        "$TEST_PYTHON" -m venv "$venv_dir"
         mkdir -p "$fake_modules"
         cat > "$fake_modules/pip.py" <<'PY'
         import os
@@ -329,7 +333,7 @@ def test_install_watchdog_for_python_uses_real_virtualenv_scope(tmp_path: Path) 
         venv_dir="$HOME/managed-venv"
         fake_modules="$HOME/fake-modules"
         pip_argv_marker="$HOME/pip-argv.txt"
-        python3 -m venv "$venv_dir"
+        "$TEST_PYTHON" -m venv "$venv_dir"
         mkdir -p "$fake_modules"
         cat > "$fake_modules/pip.py" <<'PY'
         import os
@@ -366,7 +370,7 @@ def test_install_watchdog_opts_legacy_pip_into_system_truststore(tmp_path: Path)
         venv_dir="$HOME/managed-venv"
         fake_modules="$HOME/fake-modules"
         pip_argv_marker="$HOME/pip-argv.txt"
-        python3 -m venv "$venv_dir"
+        "$TEST_PYTHON" -m venv "$venv_dir"
         mkdir -p "$fake_modules"
         cat > "$fake_modules/pip.py" <<'PY'
         if __name__ == "__main__":
@@ -405,7 +409,7 @@ def test_legacy_pip_truststore_probe_requires_available_backend(tmp_path: Path) 
         """
         venv_dir="$HOME/managed-venv"
         fake_distribution="$HOME/fake-distribution"
-        python3 -m venv "$venv_dir"
+        "$TEST_PYTHON" -m venv "$venv_dir"
         mkdir -p "$fake_distribution/pip-23.1.2.dist-info"
         cat > "$fake_distribution/pip-23.1.2.dist-info/METADATA" <<'EOF'
         Metadata-Version: 2.1
@@ -434,7 +438,7 @@ def test_install_watchdog_retries_macos_tls_failure_with_fallback_index(tmp_path
         venv_dir="$HOME/managed-venv"
         fake_modules="$HOME/fake-modules"
         pip_argv_marker="$HOME/pip-argv.txt"
-        python3 -m venv "$venv_dir"
+        "$TEST_PYTHON" -m venv "$venv_dir"
         mkdir -p "$fake_modules"
         cat > "$fake_modules/pip.py" <<'PY'
         import os
@@ -478,7 +482,7 @@ def test_install_watchdog_retries_macos_dns_failure_with_fallback_index(tmp_path
         venv_dir="$HOME/managed-venv"
         fake_modules="$HOME/fake-modules"
         pip_argv_marker="$HOME/pip-argv.txt"
-        python3 -m venv "$venv_dir"
+        "$TEST_PYTHON" -m venv "$venv_dir"
         mkdir -p "$fake_modules"
         cat > "$fake_modules/pip.py" <<'PY'
         import os
@@ -527,7 +531,7 @@ def test_pip_retries_interrupted_download_without_fallback_index(
         pip_argv_marker="$HOME/pip-argv.txt"
         attempt_marker="$HOME/pip-attempt.txt"
         pip_log="$HOME/pip.log"
-        python3 -m venv "$venv_dir"
+        "$TEST_PYTHON" -m venv "$venv_dir"
         mkdir -p "$fake_modules"
         cat > "$fake_modules/pip.py" <<'PY'
         import os
@@ -581,7 +585,7 @@ def test_install_watchdog_uses_configured_primary_index_without_retry(tmp_path: 
         venv_dir="$HOME/managed-venv"
         fake_modules="$HOME/fake-modules"
         pip_argv_marker="$HOME/pip-argv.txt"
-        python3 -m venv "$venv_dir"
+        "$TEST_PYTHON" -m venv "$venv_dir"
         mkdir -p "$fake_modules"
         cat > "$fake_modules/pip.py" <<'PY'
         import os
@@ -621,7 +625,7 @@ def test_install_watchdog_can_disable_macos_fallback_index(tmp_path: Path) -> No
         venv_dir="$HOME/managed-venv"
         fake_modules="$HOME/fake-modules"
         pip_argv_marker="$HOME/pip-argv.txt"
-        python3 -m venv "$venv_dir"
+        "$TEST_PYTHON" -m venv "$venv_dir"
         mkdir -p "$fake_modules"
         cat > "$fake_modules/pip.py" <<'PY'
         import os
@@ -678,7 +682,7 @@ def test_install_managed_venv_reuses_healthy_environment(tmp_path: Path) -> None
         CCB_INSTALL_WATCHDOG=0
         CCB_INSTALL_MOBILE_RELAY_DEPS=0
         mkdir -p "$CODEX_INSTALL_PREFIX"
-        python3 -m venv "$CODEX_INSTALL_PREFIX/.venv"
+        "$TEST_PYTHON" -m venv "$CODEX_INSTALL_PREFIX/.venv"
         echo keep > "$CODEX_INSTALL_PREFIX/.venv/marker"
         pip_needs_system_trust_refresh() { return 1; }
         install_managed_venv
@@ -702,7 +706,7 @@ def test_install_managed_venv_refreshes_legacy_pip_when_reused(tmp_path: Path) -
         CCB_INSTALL_MOBILE_RELAY_DEPS=0
         pip_argv_marker="$HOME/pip-refresh-argv.txt"
         mkdir -p "$HOME" "$CODEX_INSTALL_PREFIX"
-        python3 -m venv "$CODEX_INSTALL_PREFIX/.venv"
+        "$TEST_PYTHON" -m venv "$CODEX_INSTALL_PREFIX/.venv"
         pip_needs_system_trust_refresh() { return 0; }
         pip_install_with_index_fallback() {
           shift 2

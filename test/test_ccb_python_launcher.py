@@ -42,13 +42,20 @@ def _normalize_path(raw: str) -> str:
     return os.path.normcase(os.path.abspath(path))
 
 
+def _install_launcher(tmp_path: Path) -> Path:
+    # Run a copy: a development .venv beside the source checkout would
+    # otherwise win as the release-managed interpreter.
+    launcher = tmp_path / "install" / "bin" / "_ccb-python"
+    launcher.parent.mkdir(parents=True)
+    shutil.copy2(LAUNCHER, launcher)
+    return launcher
+
+
 def test_launcher_prefers_install_managed_python_over_stale_inherited_state(
     tmp_path: Path,
 ) -> None:
-    install_root = tmp_path / "install"
-    installed_launcher = install_root / "bin" / "_ccb-python"
-    installed_launcher.parent.mkdir(parents=True)
-    shutil.copy2(LAUNCHER, installed_launcher)
+    installed_launcher = _install_launcher(tmp_path)
+    install_root = installed_launcher.parents[1]
 
     probe_log = tmp_path / "probe.log"
     managed = install_root / ".venv" / "bin" / "python"
@@ -114,7 +121,7 @@ def test_launcher_skips_higher_python_missing_required_packages(tmp_path: Path) 
     env.pop("CCB_PYTHON", None)
 
     completed = subprocess.run(
-        _launcher_cmd(LAUNCHER, "--resolve"),
+        _launcher_cmd(_install_launcher(tmp_path), "--resolve"),
         capture_output=True,
         text=True,
         env=env,
@@ -155,7 +162,7 @@ def test_launcher_falls_back_to_python_when_python3_is_store_stub(
     env.pop("CCB_PYTHON", None)
 
     completed = subprocess.run(
-        _launcher_cmd(LAUNCHER, "--resolve"),
+        _launcher_cmd(_install_launcher(tmp_path), "--resolve"),
         capture_output=True,
         text=True,
         env=env,
@@ -192,7 +199,7 @@ def test_launcher_resolves_py_launcher_candidate(tmp_path: Path) -> None:
     env.pop("CCB_PYTHON", None)
 
     completed = subprocess.run(
-        _launcher_cmd(LAUNCHER, "--resolve"),
+        _launcher_cmd(_install_launcher(tmp_path), "--resolve"),
         capture_output=True,
         text=True,
         env=env,
@@ -209,10 +216,8 @@ def test_launcher_prefers_windows_managed_venv_over_path_probe(
 ) -> None:
     # NativeWindows managed venv layout: .venv/Scripts/python.exe must win over
     # PATH probing without falling through to the generic `python` candidate.
-    install_root = tmp_path / "install"
-    installed_launcher = install_root / "bin" / "_ccb-python"
-    installed_launcher.parent.mkdir(parents=True)
-    shutil.copy2(LAUNCHER, installed_launcher)
+    installed_launcher = _install_launcher(tmp_path)
+    install_root = installed_launcher.parents[1]
 
     managed = install_root / ".venv" / "Scripts" / "python.exe"
     managed.parent.mkdir(parents=True)

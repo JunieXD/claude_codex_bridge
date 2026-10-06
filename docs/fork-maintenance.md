@@ -254,4 +254,20 @@ On macOS, use `TMPDIR=/private/tmp` for Rust socket tests to avoid the native
 Unix-domain socket path limit. The upstream sidebar test
 `header_buttons_are_right_aligned_and_kill_project` assumes `/bin/true`, which
 is unavailable on macOS; skip that test on this host. Linux can run it normally.
-Use the same short temporary root for Python Unix-socket integration tests.
+
+Run the whole Python suite in two parallel passes (`pytest-xdist`): the CI
+selection, then the pane-backed blackbox and lifecycle tests. On a 10-core Mac
+they take about 2 and 3.5 minutes.
+
+```sh
+.venv/bin/python -m pytest -q -n 8 --dist worksteal test/ \
+  -m "not provider_blackbox and not ccb_lifecycle_smoke"
+.venv/bin/python -m pytest -q -n 8 --dist worksteal test/ \
+  -m "provider_blackbox or ccb_lifecycle_smoke"
+```
+
+More workers overload the host and time out tests that rely on the 3-second
+daemon RPC budget. `test/conftest.py` already sets `TMPDIR=/tmp` on macOS and
+puts the suite interpreter first on `PATH`, so no extra environment is needed.
+The development venv needs `pytest`, `pytest-xdist`, `tomli`, `jsonschema` and
+`deploy/mobile-relay/requirements.txt`.

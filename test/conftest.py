@@ -8,6 +8,7 @@ import signal
 import stat
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -19,7 +20,14 @@ if str(lib_dir) not in sys.path:
     sys.path.insert(0, str(lib_dir))
 
 import project.resolver as project_resolver_module
+import rust_helpers
 from storage.paths import PathLayout
+
+if sys.platform == "darwin":
+    # As in CI: the per-user $TMPDIR under /var/folders leaves too little of
+    # the 104-byte AF_UNIX path limit for test socket names.
+    os.environ["TMPDIR"] = "/tmp"
+    tempfile.tempdir = None
 
 
 def pytest_configure() -> None:
@@ -53,6 +61,42 @@ def _stop_processes_left_under_basetemp(tmp_path_factory: pytest.TempPathFactory
             except ProcessLookupError:
                 pass
         time.sleep(1)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _suite_python_on_path():
+    """Resolve ``python`` and ``python3`` to the suite interpreter.
+
+    CI runs with that interpreter first on PATH. Locally, macOS has no
+    ``python`` and Homebrew's ``python3`` lacks the test dependencies that
+    child ``#!/usr/bin/env python3`` scripts import.
+    """
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setenv("PATH", f"{Path(sys.executable).parent}{os.pathsep}{os.environ['PATH']}")
+        yield
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _patient_rust_helper_stubs():
+    """Let freshly written stub helpers outlive macOS's first-exec scan.
+
+    macOS assesses every new executable on its first launch (0.2-0.8s under
+    load), which overruns the 0.5s production helper budget. Tests that set
+    their own timeout keep it.
+    """
+    if sys.platform != "darwin":
+        yield
+        return
+    run_helper = rust_helpers._run_helper
+
+    def run_patiently(command, *, timeout_s, **kwargs):
+        if timeout_s == rust_helpers.DEFAULT_TIMEOUT_S:
+            timeout_s = 10.0
+        return run_helper(command, timeout_s=timeout_s, **kwargs)
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(rust_helpers, "_run_helper", run_patiently)
+        yield
 
 
 @pytest.fixture

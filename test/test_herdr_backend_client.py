@@ -3401,6 +3401,7 @@ def test_herdr_cli_resolves_common_windows_install_when_not_on_path(monkeypatch)
     monkeypatch.setattr(herdr_cli, "_runtime_platform", lambda: "windows")
     monkeypatch.setattr(herdr_cli, "_runtime_arch", lambda: "x64")
     monkeypatch.delenv("CCB_HERDR_EXE", raising=False)
+    monkeypatch.setenv("PATH", "")
     monkeypatch.setattr(
         herdr_cli.os.path,
         "isfile",
