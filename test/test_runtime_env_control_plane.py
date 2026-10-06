@@ -47,6 +47,16 @@ def test_control_plane_env_keeps_claude_keychain_override(monkeypatch) -> None:
     assert env['CCB_KEYCHAIN_SERVICE_OVERRIDE'] == 'Claude Code-credentials-account-a'
 
 
+def test_control_plane_env_keeps_runtime_accelerator_settings(monkeypatch) -> None:
+    monkeypatch.setenv('CCB_RUNTIME_ACCELERATOR_CODEX', '0')
+    monkeypatch.setenv('CCB_RUNTIME_ACCELERATOR_BIN', '/opt/ccb/ccb-runtime-accelerator')
+
+    env = control_plane_env()
+
+    assert env['CCB_RUNTIME_ACCELERATOR_CODEX'] == '0'
+    assert env['CCB_RUNTIME_ACCELERATOR_BIN'] == '/opt/ccb/ccb-runtime-accelerator'
+
+
 def test_control_plane_env_keeps_tmux_config_override(monkeypatch) -> None:
     monkeypatch.setenv('CCB_TMUX_CONFIG', '/home/demo/.config/ccb/tmux.conf')
 

@@ -21,6 +21,7 @@ if str(lib_dir) not in sys.path:
 
 import project.resolver as project_resolver_module
 import rust_helpers
+from runtime_accelerator.ownership import inspect_process_identity
 from storage.paths import PathLayout
 
 if sys.platform == "darwin":
@@ -42,6 +43,8 @@ def _stop_processes_left_under_basetemp(tmp_path_factory: pytest.TempPathFactory
     Real-``ccb`` tests launch daemons whose command lines name a project or
     pane path under the pytest base temp. Any that outlive the session would
     otherwise accumulate across runs; panes exit with their tmux server.
+    Runtime accelerators of long project paths listen under the shared socket
+    root instead, so they are found through their working directory.
     """
     yield
     if os.name == "nt":
@@ -52,7 +55,8 @@ def _stop_processes_left_under_basetemp(tmp_path_factory: pytest.TempPathFactory
     pids = [
         int(pid)
         for pid, _, command in (line.strip().partition(" ") for line in listing.splitlines())
-        if int(pid) != os.getpid() and any(root in command for root in roots)
+        if int(pid) != os.getpid()
+        and (any(root in command for root in roots) or _is_accelerator_under(int(pid), command, base.resolve()))
     ]
     for sig in (signal.SIGTERM, signal.SIGKILL):
         for pid in pids:
@@ -61,6 +65,13 @@ def _stop_processes_left_under_basetemp(tmp_path_factory: pytest.TempPathFactory
             except ProcessLookupError:
                 pass
         time.sleep(1)
+
+
+def _is_accelerator_under(pid: int, command: str, base: Path) -> bool:
+    if "ccb-runtime-accelerator serve" not in command:
+        return False
+    identity = inspect_process_identity(pid)
+    return identity is not None and identity.cwd is not None and identity.cwd.is_relative_to(base)
 
 
 @pytest.fixture(scope="session", autouse=True)
