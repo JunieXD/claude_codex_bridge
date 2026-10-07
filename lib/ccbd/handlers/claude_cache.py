@@ -90,7 +90,8 @@ def build_claude_cache_handler(dispatcher, registry, *, now_fn=lambda: time.time
             raise ValueError('cache session mismatch')
         return actor, runtime_dir, launch_id, session_id, activity
 
-    def record(actor, runtime_dir, state, reason, *, jobs=(), usage=None, attempt_id=None, helper_ttl=None):
+    def record(actor, runtime_dir, state, reason, *, jobs=(), usage=None, attempt_id=None, helper_ttl=None,
+               details=None):
         if not _REASON.fullmatch(reason):
             raise ValueError('invalid cache reason')
         payload = {
@@ -104,6 +105,7 @@ def build_claude_cache_handler(dispatcher, registry, *, now_fn=lambda: time.time
         payload.update({key: observation.get(key) for key in ('model', 'request_started_at', 'window_started_at')})
         if usage is not None:
             payload['usage'] = usage
+        payload.update(details or {})
         if helper_ttl in {'5m', '1h'}:
             payload['configured_helper_ttl'] = helper_ttl
         if state.get('last_log') == payload:
@@ -158,7 +160,9 @@ def build_claude_cache_handler(dispatcher, registry, *, now_fn=lambda: time.time
                 reason = 'verified_1h' if verified else 'unverified_1h'
                 if evidence.get('reason') != 'verified_usage' and _REASON.fullmatch(str(evidence.get('reason'))):
                     reason = evidence['reason']
-                record(actor, runtime_dir, state, reason, usage=counts)
+                details = {f'{name}_usage': value for name in ('found', 'expected')
+                           if (value := usage_counts(evidence.get(name))) is not None}
+                record(actor, runtime_dir, state, reason, usage=counts, details=details)
                 result = {**evidence, 'window_started_at': state['observation']['window_started_at']}
             elif action in {'status', 'acquire'}:
                 observation = state.get('observation') or {}

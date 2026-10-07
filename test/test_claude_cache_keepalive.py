@@ -379,7 +379,9 @@ def test_launch_warning_for_requested_but_unloaded_mod(tmp_path):
 
 def test_unverifiable_evidence_is_logged_with_its_reason(rig):
     rig.add_job()
-    rig.call('observe', evidence={'reason': 'usage_mismatch'})
+    rig.call('observe', evidence={'reason': 'usage_mismatch', 'found': HIT_USAGE, 'expected': MAIN_USAGE})
     log = (rig.layout.agent_logs_dir('claude') / 'cache-keepalive.log').read_text()
-    assert json.loads(log.splitlines()[-1])['reason'] == 'usage_mismatch'
+    entry = json.loads(log.splitlines()[-1])
+    assert entry['reason'] == 'usage_mismatch' and entry['found_usage'] == HIT_USAGE
+    assert entry['expected_usage'] == {name: MAIN_USAGE[name] for name in HIT_USAGE}
     assert rig.call('acquire')['reason'] == 'unverified_1h'

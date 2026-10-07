@@ -8,7 +8,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'lib'))
 
 from ccbd.socket_client import CcbdClient
-from provider_backends.claude.cache_usage import settled_transcript_usage
+from provider_backends.claude.cache_usage import transcript_usage
 from storage.paths import PathLayout
 
 
@@ -31,7 +31,7 @@ def main() -> int:
             if not projects_root:
                 config = os.environ.get('CLAUDE_CONFIG_DIR') or str(Path.home() / '.claude')
                 projects_root = str(Path(config) / 'projects')
-            payload['evidence'] = settled_transcript_usage(
+            payload['evidence'] = transcript_usage(
                 Path(payload.pop('transcript_path')),
                 projects_root=Path(projects_root),
                 session_id=str(payload['session_id']),

@@ -23,6 +23,7 @@ export function createState() {
     requestStartedAt: 0,
     model: '',
     mainUsage: null,
+    pendingObservation: null,
     verified: false,
     contextTokens: 0,
     cacheReadTokens: 0,

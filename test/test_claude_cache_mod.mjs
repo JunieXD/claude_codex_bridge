@@ -119,6 +119,24 @@ test('time, workload size, activity and budgets fail closed', () => {
   assert.equal(state.verified, false)
 })
 
+test('usage is verified on the next idle tick, after Stop hooks let Claude Code write the transcript', async () => {
+  const rig = await harness()
+  assert.equal(rig.calls.filter(call => call.action === 'observe').length, 0)
+  await rig.tick(1000)
+  assert.equal(rig.calls.filter(call => call.action === 'observe').length, 1)
+  assert.equal(rig.forks.length, 0)
+  await rig.tick()
+  assert.equal(rig.calls.filter(call => call.action === 'observe').length, 1)
+  assert.equal(rig.forks.length, 1)
+})
+
+test('a new turn before the idle tick discards the pending observation', async () => {
+  const rig = await harness()
+  await rig.fire('turn.start')
+  await rig.tick()
+  assert.equal(rig.calls.filter(call => call.action === 'observe').length, 0)
+})
+
 test('a real main turn starts a new idle wait with a fresh budget', () => {
   const state = warmState()
   state.attemptCount = 8
@@ -182,6 +200,8 @@ test('ordinary main turns retain the original delegation window', async () => {
   await rig.fire('turn.start')
   await rig.step()
   await rig.fire('classic.Stop', { transcript_path: '/session.jsonl' })
+  await rig.fire('turn.complete', { reason: 'answer' })
+  await rig.tick(6 * 60_000)
   const observations = rig.calls.filter(call => call.action === 'observe')
   assert.equal(observations[1].window_started_at, observations[0].window_started_at)
   assert.notEqual(observations[1].request_started_at, observations[0].request_started_at)
@@ -320,6 +340,8 @@ test('an old failed fork cannot invalidate a new native session', async () => {
     throw new Error('old request was aborted')
   } })
   await rig.tick()
+  // Not yet due for the new session's request; this tick only verifies its usage.
+  await rig.tick(DEFAULTS.intervalMs + 1000)
   const status = await rig.fire('command.run', { args: 'status' })
   assert.doesNotMatch(status.text, /stopped|keepalive_error/)
   assert.equal(rig.calls.findLast(call => call.action === 'observe').session_id, 'new-native')

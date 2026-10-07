@@ -105,8 +105,9 @@ Activation requires **observed API usage**, not just a setting or subscription:
 - The latest transcript response must belong to this session, match the last
   main step's input counts and model, and postdate that request's start. Only
   usage metadata is extracted; no conversation content leaves the helper.
-  Claude Code can run the Stop hook before that row is written, so the helper
-  rereads the transcript for up to 1.5 s; the log records the failing reason.
+  Claude Code appends the turn's last rows only after Stop hooks return, so Stop
+  only records the request and the next idle one-minute tick verifies it. A
+  failure is logged with its reason and, for a mismatch, both numeric usages.
 - The helper setting must be recognized, but need not be 1h. Its configured TTL
   is logged separately from the observed main 1h proof; neither a configured
   helper TTL nor one successful fork certifies upstream retention.

@@ -43,7 +43,20 @@ async function helperCacheTtl($) {
   return ['1', 'true'].includes(await $.env.get('ENABLE_PROMPT_CACHING_1H')) ? '1h' : '5m'
 }
 
+async function settleObservation($) {
+  const pending = state.pendingObservation
+  state.pendingObservation = null
+  if (pending.generation !== state.generation) return
+  try {
+    const evidence = await rpc($, 'observe', { transcript_path: pending.transcriptPath, main_usage: pending.mainUsage })
+    if (state.generation === pending.generation) observe(state, evidence)
+  } catch {
+    invalidate(state, 'usage_probe_failed')
+  }
+}
+
 async function tick($) {
+  if (state.pendingObservation && !state.busy && !state.polling) await settleObservation($)
   const now = await $.clock.now()
   const reason = eligibility(state, now)
   if (reason === 'cache_expired' || reason === 'clock_changed') {
@@ -143,6 +156,7 @@ async function bindSession($) {
   state.attemptCount = 0
   state.outputTokens = 0
   children.clear()
+  state.pendingObservation = null
   invalidate(state, 'waiting_for_main_request')
   state.busy = false
   state.stopped = false
@@ -217,14 +231,10 @@ export function register(on) {
     return result
   })
   on('classic.Stop', async ($, event, next) => {
+    // Claude Code appends the turn's last transcript rows only after Stop hooks
+    // return, so the next idle tick verifies this request's usage.
     if (state.mainUsage && state.busy) {
-      const generation = state.generation
-      try {
-        const evidence = await rpc($, 'observe', { transcript_path: event.transcript_path, main_usage: state.mainUsage })
-        if (state.generation === generation) observe(state, evidence)
-      } catch {
-        invalidate(state, 'usage_probe_failed')
-      }
+      state.pendingObservation = { transcriptPath: event.transcript_path, mainUsage: state.mainUsage, generation: state.generation }
     }
     return next(event)
   })
