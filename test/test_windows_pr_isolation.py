@@ -170,6 +170,7 @@ def test_from_platforms_import_windows_is_a_reverse_dependency(tmp_path: Path) -
     assert report.passed is False
 
 
+@pytest.mark.skipif(sys.platform == 'win32', reason='newline filenames are invalid on Windows; exercised by Ubuntu isolation CI')
 def test_git_diff_paths_use_nul_delimiters(tmp_path: Path) -> None:
     checker = _load_checker()
     repo = tmp_path / "repo"
@@ -273,6 +274,7 @@ def test_shared_codex_modules_import_without_fcntl(monkeypatch) -> None:
         importlib.reload(sys.modules["provider_backends.codex.bridge_runtime.app_server"])
 
 
+@pytest.mark.skipif(sys.platform == 'win32', reason='POSIX fcntl simulation; native open lock has a real Windows process test')
 def test_generation_lock_mutex_semantics_via_msvcrt_simulation(monkeypatch, tmp_path: Path) -> None:
     """GenerationLock must keep exclusive cross-process semantics on the
     msvcrt-backed path; simulate msvcrt via fcntl so the Windows branch is

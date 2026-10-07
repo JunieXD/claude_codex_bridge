@@ -47,7 +47,9 @@ PAYLOAD_FILES = (
 WINDOWS_PAYLOAD_DIRS = (
     "docs",
     "installer",
+    "tools",
 )
+WINDOWS_PAYLOAD_FILES = ("ccb.py", "start.ps1")
 LAUNCHER_NAMES = ("ccb", "ask", "autonew", "ctx-transfer")
 
 
@@ -137,6 +139,9 @@ def copy_payload(export_root: Path, artifact_root: Path) -> None:
 
     windows_source = export_root / WINDOWS_PLATFORM_DIR
     windows_target = artifact_root / WINDOWS_PLATFORM_DIR
+    windows_target.mkdir(parents=True, exist_ok=True)
+    for name in WINDOWS_PAYLOAD_FILES:
+        shutil.copy2(windows_source / name, windows_target / name)
     for name in WINDOWS_PAYLOAD_DIRS:
         source = windows_source / name
         if not source.is_dir():
@@ -261,6 +266,10 @@ def verify_archive(artifact_path: Path, *, version: str) -> None:
         f"{ARTIFACT_BASENAME}/install.ps1",
         f"{ARTIFACT_BASENAME}/bin/ccb.exe",
         f"{ARTIFACT_BASENAME}/bin/ask.exe",
+        f"{ARTIFACT_BASENAME}/platforms/windows/ccb.py",
+        f"{ARTIFACT_BASENAME}/platforms/windows/start.ps1",
+        f"{ARTIFACT_BASENAME}/lib/platforms/windows/herdr/entrypoint.py",
+        f"{ARTIFACT_BASENAME}/lib/platforms/windows/herdr/cli_entrypoint.py",
     }
     with zipfile.ZipFile(artifact_path) as archive:
         names = set(archive.namelist())

@@ -13,6 +13,9 @@ import json
 import os
 import subprocess
 import tempfile
+import time
+from contextlib import contextmanager
+from pathlib import Path
 
 from process_background import no_window_process_kwargs
 from platforms.windows.herdr.runtime.capabilities import _KNOWN_CAPABILITIES
@@ -20,6 +23,43 @@ from platforms.windows.herdr.runtime.capabilities import _KNOWN_CAPABILITIES
 from .common import herdr_command_env, query_herdr_server_status, resolve_herdr_executable
 
 _DEFAULT_HERDR_SESSION = 'ccb-herdr'
+
+
+@contextmanager
+def project_open_lock(project_root, timeout_s: float = 180.0):
+    """Serialize open's check/start, including simultaneous first clicks."""
+    if project_root is None:
+        yield
+        return
+    lock_path = Path(project_root) / '.ccb' / 'herdr-open.lock'
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open('a+b') as handle:
+        if handle.tell() == 0:
+            handle.write(b'\0')
+            handle.flush()
+        deadline = time.monotonic() + timeout_s
+        while True:
+            try:
+                handle.seek(0)
+                if os.name == 'nt':
+                    import msvcrt
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError:
+                if time.monotonic() >= deadline:
+                    raise TimeoutError('CCB is still opening in another process; retry after it finishes.')
+                time.sleep(0.1)
+        try:
+            yield
+        finally:
+            handle.seek(0)
+            if os.name == 'nt':
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(handle, fcntl.LOCK_UN)
 
 
 def _herdr_run(*args, **kwargs):
@@ -283,8 +323,9 @@ def _resolve_running_server(
     candidates: list[str | None] = []
     if preferred_session:
         candidates.append(preferred_session)
-    candidates.extend(_discover_running_ccb_sessions(exe))
-    candidates.append(None)
+    else:
+        candidates.extend(_discover_running_ccb_sessions(exe))
+        candidates.append(None)
     seen: set[str | None] = set()
     for session in candidates:
         if session in seen:

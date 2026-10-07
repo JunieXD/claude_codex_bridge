@@ -3398,6 +3398,7 @@ def test_get_backend_for_namespace_teardown_reattaches_without_selection_gate(mo
 
 
 def test_herdr_cli_resolves_common_windows_install_when_not_on_path(monkeypatch) -> None:
+    monkeypatch.setattr(herdr_cli.shutil, 'which', lambda name: None)
     monkeypatch.setattr(herdr_cli, "_runtime_platform", lambda: "windows")
     monkeypatch.setattr(herdr_cli, "_runtime_arch", lambda: "x64")
     monkeypatch.delenv("CCB_HERDR_EXE", raising=False)
@@ -3752,6 +3753,7 @@ def test_herdr_cli_request_adapter_focuses_workspace_for_attach_namespace() -> N
         session_name="ccb-demo",
         herdr_executable="herdr",
         run_fn=run_fn,
+        foreground_run_fn=run_fn,
         which_fn=lambda name: "herdr",
     )
 
