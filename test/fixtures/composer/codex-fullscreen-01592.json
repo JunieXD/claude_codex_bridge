@@ -1,0 +1,42 @@
+[
+  {
+    "text": "\n  \u001b[38;2;99;168;248m>_ \u001b[1m\u001b[39mOpenAI Codex\u001b[0;2m (v0.159.2)\u001b[0m\n     \u001b[2m[disposable-project]\u001b[0m\n\n  \u001b[38;2;99;168;248mNice terminal. Does it come in widescreen?\u001b[39m\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\u001b[1m›\u001b[0m \u001b[2mAsk Codex to do anything\u001b[0m\n\n  \u001b[38;2;246;226;183mGPT-6-Sol default\u001b[39m · \u001b[38;2;171;223;167m[disposable-project]\u001b[39m\n  \u001b[1m?\u001b[0m for shortcuts                                                                   ⚠ \u001b[38;2;196;167;103m4 warnings\u001b[39m · \u001b[1mf2\u001b[0m to view\n",
+    "cursor_x": 2,
+    "cursor_y": 31,
+    "blocked": false,
+    "case": "initial",
+    "expected": "empty"
+  },
+  {
+    "text": "\n  \u001b[38;2;99;168;248m>_ \u001b[1m\u001b[39mOpenAI Codex\u001b[0;2m (v0.159.2)\u001b[0m\n     \u001b[2m[disposable-project]\u001b[0m\n\n  \u001b[38;2;99;168;248mNice terminal. Does it come in widescreen?\u001b[39m\n\n\n\u001b[1;2m› \u001b[0mCCB_FOOTER_NATIVE_TEST\n\n  Reply OK. Do not use tools.\n\n\n\u001b[2m• \u001b[0mOK\n\n\u001b[2m  Worked for <1s • 22:12\n\u001b[0m\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\u001b[1m›\u001b[0m \u001b[2mAsk Codex to do anything\u001b[0m\n\n  \u001b[38;2;246;226;183mGPT-6-Sol default\u001b[39m · \u001b[38;2;171;223;167m[disposable-project]\u001b[39m\n  \u001b[1m?\u001b[0m for shortcuts                                                                   ⚠ \u001b[38;2;196;167;103m4 warnings\u001b[39m · \u001b[1mf2\u001b[0m to view\n",
+    "cursor_x": 2,
+    "cursor_y": 31,
+    "blocked": false,
+    "case": "after-turn",
+    "expected": "empty"
+  },
+  {
+    "text": "\n  \u001b[38;2;99;168;248m>_ \u001b[1m\u001b[39mOpenAI Codex\u001b[0;2m (v0.159.2)\u001b[0m\n     \u001b[2m[disposable-project]\u001b[0m\n\n  \u001b[38;2;99;168;248mNice terminal. Does it come in widescreen?\u001b[39m\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\u001b[1m›\u001b[0m HUMAN_DRAFT_FOOTER\n\n  \u001b[38;2;246;226;183mGPT-6-Sol default\u001b[39m · \u001b[38;2;171;223;167m[disposable-project]\u001b[39m\n                                                                                    ⚠ \u001b[38;2;196;167;103m4 warnings\u001b[39m · \u001b[1mf2\u001b[0m to view\n",
+    "cursor_x": 20,
+    "cursor_y": 31,
+    "blocked": false,
+    "case": "draft",
+    "expected": "unknown"
+  },
+  {
+    "text": "\n  \u001b[38;2;99;168;248m>_ \u001b[1m\u001b[39mOpenAI Codex\u001b[0;2m (v0.159.2)\u001b[0m\n     \u001b[2m[disposable-project]\u001b[0m\n\n  \u001b[38;2;99;168;248mNice terminal. Does it come in widescreen?\u001b[39m\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n  \u001b[1mSelect Model and Effort\u001b[0m\n\n\n  1. GPT-6.1-Sol (default)  \u001b[2mLatest workhorse model for coding and everyday work.\u001b[0m\n  2. GPT-6-Astra            \u001b[2mFrontier intelligence for the most demanding work.\u001b[0m\n\u001b[1;7m› 3. GPT-6-Sol (current)    \u001b[0;7mPrevious generation workhorse model.\u001b[1m\n\u001b[0m  4. GPT-6-Luna             \u001b[2mFast and affordable model for easier tasks.\u001b[0m\n  5. GPT-5.6-Sol            \u001b[2mOlder generation workhorse model.\u001b[0m\n  6. GPT-5.6-Terra          \u001b[2mOlder balanced model for straightforward work.\u001b[0m\n  7. GPT-5.6-Luna           \u001b[2mOlder fast and efficient model.\u001b[0m\n  8. GPT-5.5                \u001b[2mLegacy coding model.\u001b[0m\n\n  \u001b[1menter\u001b[0;2m select · \u001b[0;1mesc\u001b[0;2m back\n",
+    "cursor_x": 110,
+    "cursor_y": 34,
+    "blocked": false,
+    "case": "model-menu",
+    "expected": "unknown"
+  },
+  {
+    "text": "\n  \u001b[38;2;99;168;248m>_ \u001b[1m\u001b[39mOpenAI Codex\u001b[0;2m (v0.159.2)\u001b[0m\n     \u001b[2m[disposable-project]\u001b[0m\n\u001b[2m  permissions: \u001b[0;1m\u001b[38;5;5mYOLO mode\u001b[0m\n\n  \u001b[38;2;99;168;248mIt takes two to tango. What’s our first step?\u001b[39m\n\n\n\u001b[1;2m› \u001b[0mCCB_REQ_ID: job_026b48916dc5\n\n  MANAGED_FOOTER_0\n  Reply OK. Do not use tools.\n\n\n\u001b[2m• \u001b[0m解释提示 (esc to interrupt)\n\n\u001b[2m  Worked for 3s • 22:25\n\u001b[0m\n\n\u001b[1;2m› \u001b[0mCCB_REQ_ID: job_7b8c3b11048c\n\n  MANAGED_FOOTER_1\n  Reply OK. Do not use tools.\n\n\n\u001b[2m• \u001b[0m解释提示 (esc to interrupt)\n\n\u001b[2m  Worked for 3s • 22:25\n\u001b[0m\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\u001b[1m›\u001b[0m \u001b[2mAsk Codex to do anything\u001b[0m\n\n  \u001b[38;2;246;226;183mGPT-6-Sol default\u001b[39m · \u001b[38;2;171;223;167m[disposable-project]\u001b[39m\n  \u001b[1m?\u001b[0m for shortcuts                                                                                            ⚠ \u001b[38;2;196;167;103m5 warnings\u001b[39m · \u001b[1mf2\u001b[0m to view\n",
+    "cursor_x": 2,
+    "cursor_y": 43,
+    "blocked": false,
+    "case": "managed-ordinary-interrupt-history",
+    "expected": "empty"
+  }
+]

@@ -6,6 +6,11 @@ Last updated: 2026-09-20
 
 ## Current Slice: Unified FIFO And Empty-Result Notices
 
+2026-10-07: [fullscreen footer/busy-text repair](evidence/codex-multiline-footer-20261007.md)
+passes 585 related regressions and real managed queue roundtrips. PR #368 is
+merged and passes the trusted Windows isolation gate. Owner authorized v8.7.7 publication on 2026-10-08;
+next target is source landing, release qualification and public verification.
+
 2026-10-05: [Codex status-bar compatibility repair](evidence/codex-status-bar-20261005.md)
 is implemented and verified locally (237 regressions, native guarded matrix and
 remote turn). Empty custom status rows no longer strand the guard. The owner authorized a

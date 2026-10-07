@@ -62,6 +62,11 @@ Post-push macOS timeout and bounded rerun are tracked explicitly.
 
 ## Issue 356 follow-up
 
+2026-10-07: [Codex fullscreen footer and busy-text repair](evidence/codex-multiline-footer-20261007.md)
+is locally verified after the PR #368 Windows isolation audit. Related
+regressions and real managed FIFO delivery pass; this shared repair is
+prepared for the owner-authorized v8.7.7 release.
+
 [2026-10-05 submission-stall investigation](topics/issue-356-submit-stall.md):
 isolated native reproduction of pasted-but-unsubmitted Codex requests. A distinct
 status-bar pre-send bug is repaired locally; [237 regressions and native/remote
