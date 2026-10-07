@@ -927,6 +927,7 @@ function Install-Native {
   # `ccb.py` (entrypoint) together so installed layout matches the launcher.
   $items = @(
     "ccb.py", "lib", "bin", "commands", "mcp", "inherit_skills",
+    "platforms\windows",
     "assets", "config", "useful_tools", "VERSION", "BUILD_INFO.json", "WINDOWS_MANIFEST.json"
   )
   foreach ($item in $items) {
@@ -934,6 +935,7 @@ function Install-Native {
     $dst = Join-Path $InstallPrefix $item
     if (Test-Path $src) {
       if (Test-Path $dst) { Remove-Item -Recurse -Force $dst }
+      New-Item -ItemType Directory -Path (Split-Path -Parent $dst) -Force | Out-Null
       Copy-Item -Recurse -Force $src $dst
     }
   }
@@ -972,9 +974,8 @@ function Install-Native {
   # Windows typically has `python` but not `python3`, so rewrite shebangs for compatibility.
   foreach ($script in $scripts) {
     if ($script -eq "ccb") {
-      # The installed Windows entrypoint is ccb.py (the bash `ccb` launcher is
-      # not executable by Python); fix its shebang too.
-      Fix-PythonShebang (Join-Path $InstallPrefix "ccb.py")
+      # Native and script launchers share the Windows-owned Python entrypoint.
+      Fix-PythonShebang (Join-Path $InstallPrefix "platforms\windows\ccb.py")
     } else {
       Fix-PythonShebang (Join-Path $InstallPrefix ("bin\\" + $script))
     }
@@ -984,11 +985,8 @@ function Install-Native {
     $batPath = Join-Path $binDir "$script.bat"
     $cmdPath = Join-Path $binDir "$script.cmd"
     if ($script -eq "ccb") {
-      # The repo `ccb` is a bash launcher (source-dev shape); on Windows the
-      # .bat/.cmd wrapper must invoke the Python entrypoint ccb.py (installed
-      # beside `ccb`), not the bash script, or the wrapper fails with a Python
-      # SyntaxError on the bash source.
-      $relPath = "..\\ccb.py"
+      # Match ccb.exe so fallback launchers retain native CLI composition.
+      $relPath = "..\platforms\windows\ccb.py"
     } else {
       # Script is installed alongside the wrapper under $InstallPrefix\bin
       $relPath = $script
