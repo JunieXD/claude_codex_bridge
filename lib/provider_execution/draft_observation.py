@@ -66,12 +66,7 @@ def inspect_screen(provider: str, screen: dict, *, binding: str) -> Observation:
         if not arrows:
             return result('unknown', 'composer_missing')
         top = arrows[-1]
-        # The phrase alone also occurs in ordinary answers and user drafts.
-        # Only the native animated status row outside the composer vetoes send.
-        # Join its continuation rows for narrow terminals.
-        if any(re.match(r'^[•◦]\s', line) and re.search(
-                r'\([^)]*esc to interrupt', ' '.join(lines[i:min(i+3, top)]), re.I)
-               for i, line in enumerate(lines[:top])):
+        if _codex_busy(lines[:top]):
             return result('unknown', 'provider_busy')
         # Default main composer has a status footer below the cursor. Selection
         # menus use the same arrow; their confirmation footer is not accepted.
@@ -121,11 +116,48 @@ def inspect_screen(provider: str, screen: dict, *, binding: str) -> Observation:
     return result('nonempty', 'claude_draft')
 
 
+def _codex_busy(lines: list[str]) -> bool:
+    from provider_pane_status.codex_pane import (
+        CODEX_RECONNECT_LINE_RE, CODEX_TOOL_LINE_RE, CODEX_WORKING_LINE_RE,
+        WORKED_FOR_RE,
+    )
+
+    active = completed = -1
+    for index, line in enumerate(lines):
+        # A wrapped native row may continue on indented lines, never on the
+        # next assistant bullet or a user prompt. Reuse the status vocabulary
+        # rather than treating arbitrary quoted interrupt hints as activity.
+        parts = [line]
+        for continuation in lines[index+1:index+3]:
+            if not continuation.strip() or not continuation.startswith('  '):
+                break
+            parts.append(continuation.strip())
+        status = ' '.join(parts)
+        # Fullscreen Codex 0.159.2 renders this native summary with two-space
+        # indentation instead of a bullet. Keep the same timer grammar.
+        completed_status = re.sub(r'^  (?=worked\s+for\b)', '• ', status, flags=re.I)
+        if WORKED_FOR_RE.match(completed_status):
+            completed = index
+        if any(pattern.match(status) for pattern in (
+                CODEX_RECONNECT_LINE_RE, CODEX_TOOL_LINE_RE, CODEX_WORKING_LINE_RE)):
+            active = index
+    return active > completed
+
+
 def _codex_footer(lines, styled, cursor_x: int, cursor_y: int) -> int | None:
-    # The status bar is the last nonblank row, separated from the editor by
-    # a blank row. Its configurable labels (including model names) are opaque.
+    # A contiguous native status/hint region follows the editor's blank
+    # separator. Model/status labels remain opaque; extra rows must be native
+    # hints, so arbitrary indented draft continuation cannot become a footer.
     footer = next((i for i in range(len(lines)-1, cursor_y, -1) if lines[i].strip()), None)
-    if footer is None or footer <= cursor_y+1 or lines[footer-1].strip():
+    if footer is None:
+        return None
+    bottom = footer
+    while footer > cursor_y+1 and lines[footer-1].strip():
+        footer -= 1
+    if footer <= cursor_y+1 or lines[footer-1].strip():
+        return None
+    if any(not re.match(r'^  \? for shortcuts\b', row)
+           for row in lines[footer+1:bottom+1]):
         return None
     row = lines[footer]
     if not row.startswith('  '):
