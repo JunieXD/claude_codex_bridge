@@ -8,29 +8,6 @@ Owner authorized publication on 2026-10-08. Preparing the source fix for
 v8.7.7; existing projects have not been updated. Publication verification
 will be recorded separately.
 
-## Windows PR prerequisite
-
-[PR #368](https://github.com/SeemSeam/claude_codex_bridge/pull/368) was already
-merged when the final audit checked GitHub:
-
-- Base: `0b81137330e52ea0cdd8fc7d54172550e921b7f6`.
-- Reviewed head: `4772deb6f604d4a5923ae01bd92a2c7b6a0b958d`.
-- Merge: `d25152eda64698f1de856f1d345c2f1ce4da34c1`.
-- Merge timestamp: `2026-10-07T13:38:35Z`.
-
-The checker exported from the trusted base passed with `scope=windows`:
-
-```sh
-python3 /tmp/ccb-pr368-policy/platforms/windows/tools/check_pr_isolation.py \
-  --repo-root /tmp/ccb-pr368-review --base 0b811373 --head 4772deb
-```
-
-The GitHub Windows isolation check also passed. PR-directed tests passed
-`306 passed, 1 skipped`; the merge tree equals the reviewed head tree.
-Changes remain Windows-owned; no shared version/release metadata is bundled.
-This Linux host does not establish a new native Windows/WezTerm functional
-qualification. The shared Codex repair below is separate from that Windows PR.
-
 ## Reproduced failures and repair
 
 The supplied report describes CCB 8.7.6 and Codex CLI 0.159.2. Both defects
@@ -118,6 +95,6 @@ key was replaced with the standard synthetic `OPENAI_API_KEY` forwarding path.
 
 ## Next action
 
-Land the shared repair separately from Windows functional changes, then
+Land the shared repair as an independently reviewed source change, then
 qualify and publish v8.7.7 under the owner's 2026-10-08 authorization.
 Track package/source identity and CI in the release verification record.
