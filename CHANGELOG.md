@@ -1,5 +1,12 @@
 # Changelog
 
+## v8.7.7 (2026-10-08)
+
+- Fix Codex fullscreen footer and historical interrupt-text false vetoes; preserve drafts, native busy/menu blocking and ordered delivery.
+- 修复 Codex 双行底栏和历史回复中断提示误判，保留草稿、原生活动/菜单保护与有序投递。
+- Retain earlier Claude/Codex repairs and include separately reviewed platform-specific reliability changes from PR #368.
+- [Full bilingual notes](docs/releases/v8.7.7.md).
+
 ## v8.7.6 (2026-10-06)
 
 - Recognize native Claude pasted request envelopes across anchor, lifecycle and stop-hook paths (#354).
