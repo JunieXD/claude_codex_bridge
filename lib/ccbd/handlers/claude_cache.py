@@ -154,6 +154,8 @@ def build_claude_cache_handler(dispatcher, registry, *, now_fn=lambda: time.time
                 state.setdefault('window_started_at', state['observation']['window_started_at'])
                 state['observation']['window_started_at'] = _timestamp(state['window_started_at'])
                 reason = 'verified_1h' if verified else 'unverified_1h'
+                if evidence.get('reason') != 'verified_usage' and _REASON.fullmatch(str(evidence.get('reason'))):
+                    reason = evidence['reason']
                 record(actor, runtime_dir, state, reason, usage=counts)
                 result = {**evidence, 'window_started_at': state['observation']['window_started_at']}
             elif action in {'status', 'acquire'}:

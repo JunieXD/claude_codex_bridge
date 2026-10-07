@@ -3,10 +3,14 @@ from __future__ import annotations
 from datetime import datetime
 import json
 from pathlib import Path
+import time
 
 
 USAGE_FIELDS = ('input_tokens', 'output_tokens', 'cache_creation_input_tokens', 'cache_read_input_tokens')
 MAX_TAIL_BYTES = 4 * 1024 * 1024
+# Claude Code can run Stop hooks before the turn's last assistant row reaches
+# the transcript; until it does, the newest row belongs to an earlier request.
+UNSETTLED_REASONS = {'usage_mismatch', 'stale_usage', 'missing_usage'}
 
 
 def usage_counts(value: object) -> dict[str, int] | None:
@@ -66,3 +70,13 @@ def transcript_usage(path: Path, *, projects_root: Path, session_id: str, model:
     except (OSError, ValueError, TypeError, AttributeError):
         return {'reason': 'usage_unavailable'}
     return {'reason': 'missing_usage'}
+
+
+def settled_transcript_usage(path: Path, *, timeout_s: float = 1.5, sleep=time.sleep, clock=time.monotonic,
+                             **kwargs) -> dict:
+    deadline = clock() + timeout_s
+    while True:
+        evidence = transcript_usage(path, **kwargs)
+        if evidence['reason'] not in UNSETTLED_REASONS or clock() >= deadline:
+            return evidence
+        sleep(0.05)

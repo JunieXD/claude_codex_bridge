@@ -375,3 +375,11 @@ def test_launch_warning_for_requested_but_unloaded_mod(tmp_path):
     write_launch_status(blocked, 'hooks_disabled')
     warnings = launch_warnings({'a': loaded, 'b': blocked, 'c': unknown}, shell_env={})
     assert warnings == ["Cache keepalive was requested for Claude agent 'b' but not loaded: hooks_disabled."]
+
+
+def test_unverifiable_evidence_is_logged_with_its_reason(rig):
+    rig.add_job()
+    rig.call('observe', evidence={'reason': 'usage_mismatch'})
+    log = (rig.layout.agent_logs_dir('claude') / 'cache-keepalive.log').read_text()
+    assert json.loads(log.splitlines()[-1])['reason'] == 'usage_mismatch'
+    assert rig.call('acquire')['reason'] == 'unverified_1h'

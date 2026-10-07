@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from provider_backends.claude.cache_usage import transcript_usage, usage_counts
+from provider_backends.claude.cache_usage import settled_transcript_usage, transcript_usage, usage_counts
 
 
 def usage(**overrides):
@@ -64,3 +64,42 @@ def test_paths_cannot_escape_project_transcripts(tmp_path):
 @pytest.mark.parametrize('value', [None, {}, usage(input_tokens=-1), usage(output_tokens=1.5)])
 def test_usage_is_strict_nonnegative_integer_counts(value):
     assert usage_counts(value) is None
+
+
+def test_waits_for_the_turn_row_written_after_the_stop_hook(tmp_path):
+    root = tmp_path / 'projects'
+    root.mkdir()
+    path = root / 'session.jsonl'
+    row = {'type': 'assistant', 'sessionId': 'session', 'timestamp': '2026-10-05T00:00:01Z',
+           'message': {'model': 'claude-opus-5-5', 'usage': usage(cache_creation_input_tokens=5)}}
+    path.write_text(json.dumps(row) + '\n')
+    final = {**row, 'message': {'model': 'claude-opus-5-5', 'usage': {
+        **usage(), 'cache_creation': {'ephemeral_1h_input_tokens': 20000, 'ephemeral_5m_input_tokens': 0}}}}
+    now = [0.0]
+
+    def sleep(seconds):
+        now[0] += seconds
+        with path.open('a') as handle:
+            handle.write(json.dumps(final) + '\n')
+
+    evidence = settled_transcript_usage(path, sleep=sleep, clock=lambda: now[0], projects_root=root,
+                                        session_id='session', model='claude-opus-5-5', expected=usage(),
+                                        request_started_at=1791158400000)
+    assert evidence['reason'] == 'verified_usage'
+
+
+def test_stops_waiting_for_a_row_that_never_matches(tmp_path):
+    now = [0.0]
+    root = tmp_path / 'projects'
+    root.mkdir()
+    path = root / 'session.jsonl'
+    path.write_text(json.dumps({'type': 'assistant', 'sessionId': 'session', 'timestamp': '2026-10-05T00:00:01Z',
+                                'message': {'model': 'claude-opus-5-5', 'usage': usage(input_tokens=1)}}) + '\n')
+
+    def sleep(seconds):
+        now[0] += seconds
+
+    evidence = settled_transcript_usage(path, sleep=sleep, clock=lambda: now[0], projects_root=root,
+                                        session_id='session', model='claude-opus-5-5', expected=usage(),
+                                        request_started_at=1791158400000)
+    assert evidence['reason'] == 'usage_mismatch' and now[0] >= 1.5
