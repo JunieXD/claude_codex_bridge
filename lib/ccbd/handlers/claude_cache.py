@@ -118,6 +118,10 @@ def build_claude_cache_handler(dispatcher, registry, *, now_fn=lambda: time.time
             for job in jobs:
                 dispatcher._append_event(job, 'claude_cache_keepalive', payload, timestamp=timestamp)
 
+    def pending(actor, state):
+        since = (state.get('observation') or {}).get('window_started_at') or state.get('window_started_at')
+        return pending_codex_jobs(dispatcher, actor, since_ms=since) if since else []
+
     def handle(payload: dict) -> dict:
         with lock, dispatcher._chain_transition_lock:
             actor, runtime_dir, launch_id, session_id, activity = identity(payload)
@@ -166,8 +170,7 @@ def build_claude_cache_handler(dispatcher, registry, *, now_fn=lambda: time.time
                 result = {**evidence, 'window_started_at': state['observation']['window_started_at']}
             elif action in {'status', 'acquire'}:
                 observation = state.get('observation') or {}
-                since = observation.get('window_started_at') or state.get('window_started_at')
-                jobs = pending_codex_jobs(dispatcher, actor, since_ms=since) if since else []
+                jobs = pending(actor, state)
                 result = {
                     'allowed': False,
                     'reason': 'no_pending_codex',
@@ -253,7 +256,7 @@ def build_claude_cache_handler(dispatcher, registry, *, now_fn=lambda: time.time
                 result = {'allowed': reason == 'cache_hit', 'reason': reason}
             elif action == 'report':
                 reason = str(payload.get('reason') or '')
-                record(actor, runtime_dir, state, reason, usage=usage_counts(payload.get('usage')),
+                record(actor, runtime_dir, state, reason, jobs=pending(actor, state), usage=usage_counts(payload.get('usage')),
                        helper_ttl=payload.get('helper_ttl'))
                 result = {'allowed': True}
             else:

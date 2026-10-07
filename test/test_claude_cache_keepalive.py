@@ -385,3 +385,11 @@ def test_unverifiable_evidence_is_logged_with_its_reason(rig):
     assert entry['reason'] == 'usage_mismatch' and entry['found_usage'] == HIT_USAGE
     assert entry['expected_usage'] == {name: MAIN_USAGE[name] for name in HIT_USAGE}
     assert rig.call('acquire')['reason'] == 'unverified_1h'
+
+
+def test_reported_plugin_reasons_log_the_waiting_codex_jobs(rig):
+    rig.add_job()
+    rig.call('report', reason='not_due')
+    log = (rig.layout.agent_logs_dir('claude') / 'cache-keepalive.log').read_text().splitlines()
+    assert json.loads(log[-1])['reason'] == 'not_due'
+    assert json.loads(log[-1])['pending_jobs'] == ['child']
