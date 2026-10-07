@@ -131,6 +131,8 @@ def build_claude_cache_handler(dispatcher, registry, *, now_fn=lambda: time.time
             action = payload.get('action')
             now = now_fn()
             if action == 'observe':
+                # A real main request ends the idle wait the budget bounds.
+                state.update({'attempt_count': 0, 'output_tokens': 0})
                 evidence = payload.get('evidence') or {}
                 counts = usage_counts(evidence.get('usage'))
                 previous = state.get('observation') or {}

@@ -119,6 +119,14 @@ test('time, workload size, activity and budgets fail closed', () => {
   assert.equal(state.verified, false)
 })
 
+test('a real main turn starts a new idle wait with a fresh budget', () => {
+  const state = warmState()
+  state.attemptCount = 8
+  state.outputTokens = 2048
+  observe(state, evidence)
+  assert.equal(eligibility(state, 1000 + DEFAULTS.intervalMs), 'due')
+})
+
 test('bad hits, unknown API errors and unexpectedly large outputs stop warming', () => {
   assert.equal(assessFork(hit, 20010), 'cache_hit')
   assert.equal(assessFork(null, 20010), 'missing_fork_usage')

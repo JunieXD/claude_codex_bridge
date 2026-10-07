@@ -140,9 +140,10 @@ local timer without reusing old TTL proof.
 - One durable lease prevents overlapping requests. Acquired leases and attempt
   counts survive daemon restarts; an unresolved request fails closed rather than
   being retried. Launch/session fences reject stale processes.
-- At most eight acquired attempts per current native session, and stop future
-  requests after 2,048 cumulative output tokens. Main turns do not reset those
-  budgets. Eligible contexts contain 20,000–1,000,000 input tokens.
+- At most eight acquired attempts (about six hours) and 2,048 cumulative output
+  tokens per idle wait. Each real main turn, including a delivered Codex reply,
+  starts a new wait with a fresh budget; daemon restarts do not. Eligible contexts
+  contain 20,000–1,000,000 input tokens.
 - Require at least a 95% cache-read hit and at most 5% uncached/newly cached tail.
   Stop on the first miss, API failure, missing usage or excessive output.
 - A pause, new main turn, session/model change or child completion prevents later

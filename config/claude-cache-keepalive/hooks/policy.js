@@ -43,6 +43,8 @@ export function invalidate(state, reason, { forgetTtl = true } = {}) {
 }
 
 export function observe(state, evidence) {
+  state.attemptCount = 0
+  state.outputTokens = 0
   if (Number.isFinite(evidence?.window_started_at) && evidence.window_started_at > 0) state.turnStartedAt = evidence.window_started_at
   const usage = evidence?.usage
   if (!usage || evidence.reason !== 'verified_usage') {

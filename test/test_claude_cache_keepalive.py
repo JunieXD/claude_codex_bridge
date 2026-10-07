@@ -267,7 +267,7 @@ def test_observation_recovers_the_window_if_startup_status_was_unavailable(rig):
     assert rig.call('acquire')['allowed']
 
 
-def test_budget_limits_are_persisted_and_cannot_be_reset_by_main_turns(rig):
+def test_budget_limits_each_idle_wait_and_a_main_turn_starts_a_new_one(rig):
     rig.add_job()
     for attempt in range(8):
         started_at = START + (attempt + 1) * INTERVAL_MS
@@ -280,7 +280,7 @@ def test_budget_limits_are_persisted_and_cannot_be_reset_by_main_turns(rig):
     rig.payload['request_started_at'] += INTERVAL_MS
     assert rig.call('acquire')['reason'] == 'budget_exhausted'
     rig.call('observe', evidence={'reason': 'verified_usage', 'usage': MAIN_USAGE})
-    assert rig.call('acquire')['reason'] == 'budget_exhausted'
+    assert rig.call('acquire')['allowed']
 
 
 def test_completed_child_during_a_fork_is_logged_without_another_attempt(rig):
