@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+import shutil
+import subprocess
+
+import pytest
 
 
 def test_windows_install_keeps_backend_environment_confirmation_before_install_work() -> None:
@@ -54,3 +58,34 @@ def test_windows_installer_yes_mode_never_prompts_for_missing_herdr() -> None:
     assert acknowledgement in herdr_block
     assert herdr_block.index(acknowledgement) < herdr_block.index('Read-Host "继续安装? (y/N)"')
     assert '$reply = [string](Read-Host "继续安装? (y/N)")' in herdr_block
+
+
+@pytest.mark.skipif(not (shutil.which('pwsh') or shutil.which('powershell')),
+                    reason='native PowerShell is required for installer payload execution')
+def test_native_payload_install_and_update_preserve_entrypoint_paths(tmp_path: Path) -> None:
+    installer = Path('platforms/windows/installer/install.ps1').read_text(encoding='utf-8-sig')
+    install = installer.split('function Install-Native {', 1)[1]
+    copy = install[install.index('$items = @('):install.index('$pythonExecutable = Install-ManagedPythonRuntime')]
+    source = tmp_path / 'source payload'
+    target = tmp_path / 'installed prefix'
+    payloads = ['ccb.py', 'lib/platforms/windows/herdr/entrypoint.py',
+                'platforms/windows/ccb.py', 'platforms/windows/start.ps1',
+                'platforms/windows/installer/requirements.txt']
+    for path in payloads:
+        file = source / path
+        file.parent.mkdir(parents=True, exist_ok=True)
+        file.write_text('first payload', encoding='utf-8')
+    literal = lambda path: "'" + str(path).replace("'", "''") + "'"
+    script = tmp_path / 'copy.ps1'
+    script.write_text("$ErrorActionPreference = 'Stop'\n"
+                      f'$repoRoot = {literal(source)}\n$InstallPrefix = {literal(target)}\n'
+                      + copy, encoding='utf-8')
+    command = [shutil.which('pwsh') or shutil.which('powershell'), '-NoProfile',
+               '-NonInteractive', '-File', str(script)]
+    for value in ['first payload', 'updated payload']:
+        (source / 'platforms/windows/ccb.py').write_text(value, encoding='utf-8')
+        result = subprocess.run(command, capture_output=True, text=True, timeout=60)
+        assert result.returncode == 0, result.stdout + result.stderr
+        for path in payloads:
+            assert (target / path).read_bytes() == (source / path).read_bytes()
+        assert not (target / 'platforms/windows/windows').exists()
