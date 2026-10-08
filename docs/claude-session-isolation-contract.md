@@ -493,7 +493,19 @@ separate worlds:
 
 Exception (JunieXD Fork): auto memory is not a conversation. The managed
 agent's `projects/<key>/memory` links to the user's own memory for the same
-working directory, so both worlds share remembered facts but never transcripts.
+working directory, so both worlds share remembered facts while keeping their
+conversations separate.
+
+For read-only usage accounting, managed Claude transcripts are exposed under
+the user's `~/.claude/projects/ccb<key>--<agent_name>` through a directory link
+to the private `projects/<key>`. The name is `ccb` + `project_key(work_dir)` +
+`--` + the agent name. Ordinary cwd-derived keys start with `-`, so the `ccb`
+prefix keeps these links separate from directory-based `--continue`/resume
+lookup. This exposure is independent of memory inheritance.
+
+Codex gets no equivalent link: its desktop app imports records under
+`~/.codex/sessions` into its session index, which would mix managed sessions
+into the user's ordinary Codex history.
 
 Bash tool commands use the real account `HOME` through a CCB-generated
 `CLAUDE_ENV_FILE`; an explicit caller value takes precedence. The Claude process

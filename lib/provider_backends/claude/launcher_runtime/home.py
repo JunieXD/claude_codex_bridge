@@ -471,6 +471,8 @@ def _materialize_inherited_assets(
     )
     if _inherits_memory(profile) and (workspace_path or project_root) is not None:
         _share_project_auto_memory(source_home, target_layout, Path(workspace_path or project_root))
+    if (workspace_path or project_root) is not None and agent_name:
+        _expose_transcripts(source_home, target_layout, Path(workspace_path or project_root), agent_name)
     _materialize_home_hook_assets(source_home, target_layout, profile=profile)
     return memory_result
 
@@ -502,6 +504,28 @@ def _share_project_auto_memory(
     shared.mkdir(parents=True, exist_ok=True)
     private.parent.mkdir(parents=True, exist_ok=True)
     private.symlink_to(shared, target_is_directory=True)
+
+
+def _expose_transcripts(
+    source_home: Path,
+    target_layout: ClaudeHomeLayout,
+    work_dir: Path,
+    agent_name: str,
+) -> None:
+    # Usage tools scan the user's projects directory. "ccb" keeps these links
+    # outside cwd-derived "-" keys used by ordinary continue/resume.
+    key = project_key(work_dir)
+    private = target_layout.claude_dir / 'projects' / key
+    link = source_home / '.claude' / 'projects' / f'ccb{key}--{agent_name}'
+    private.mkdir(parents=True, exist_ok=True)
+    if link.is_symlink():
+        if link.resolve() == private.resolve():
+            return
+        link.unlink()
+    elif link.exists():
+        return
+    link.parent.mkdir(parents=True, exist_ok=True)
+    link.symlink_to(private, target_is_directory=True)
 
 
 def _materialize_claude_memory(

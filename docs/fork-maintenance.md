@@ -94,6 +94,11 @@ Maintained Fork: https://github.com/JunieXD/claude_codex_bridge
   directory (`~/.claude/projects/<key>/memory`) through a link, so CCB and
   ordinary Claude sessions remember the same things. Existing private memory
   moves over unless a file name conflicts; conflicting memories stay separate.
+- Managed Claude exposes private transcripts to usage tools through
+  `~/.claude/projects/ccb<key>--<agent_name>` directory links, independently of
+  memory inheritance. The `ccb` prefix separates them from ordinary cwd-based
+  session keys. Codex gets no such links because its desktop app would import
+  the records into the user's session history.
 - A managed Claude agent uses the user's `~/.gitconfig`, `~/.config/gh` and
   `~/.docker` through `GIT_CONFIG_GLOBAL`, `GH_CONFIG_DIR` and `DOCKER_CONFIG`
   instead of empty defaults in its private `HOME`. Explicit caller values win.

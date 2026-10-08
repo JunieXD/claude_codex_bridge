@@ -37,6 +37,7 @@ from project.ids import compute_project_id
 from project.resolver import ProjectContext
 from provider_backends.agy import launcher as agy_launcher
 from provider_backends.claude import launcher as claude_launcher
+from provider_backends.claude.launcher_runtime.history import project_key
 from provider_backends.claude.launcher_runtime.home import (
     prepare_claude_home_overrides as prepare_claude_home_overrides_for_test,
 )
@@ -424,6 +425,104 @@ def test_claude_auto_memory_is_shared_with_user_home(tmp_path: Path) -> None:
     # Conflicting memories are never merged or overwritten.
     assert not other.is_symlink()
     assert (other / 'MEMORY.md').read_text(encoding='utf-8') == 'agent index\n'
+
+
+@pytest.mark.parametrize('prelinked', [False, True])
+def test_claude_transcripts_are_exposed_to_usage_tools(tmp_path: Path, prelinked: bool) -> None:
+    source_home = tmp_path / 'user-home'
+    work_dir = tmp_path / 'work project'
+    layout = SimpleNamespace(claude_dir=tmp_path / 'agent-home' / '.claude')
+    key = project_key(work_dir)
+    private = layout.claude_dir / 'projects' / key
+    link = source_home / '.claude' / 'projects' / f'ccb{key}--demo'
+    if prelinked:
+        private.mkdir(parents=True)
+        link.parent.mkdir(parents=True)
+        link.symlink_to(private, target_is_directory=True)
+    inode = link.lstat().st_ino if prelinked else None
+
+    claude_home_runtime._expose_transcripts(source_home, layout, work_dir, 'demo')
+
+    assert private.is_dir()
+    assert link.is_symlink() and link.resolve() == private.resolve()
+    assert link.name == 'ccb' + key + '--demo'
+    assert not link.name.startswith('-')
+    if prelinked:
+        assert link.lstat().st_ino == inode
+    inode = link.lstat().st_ino
+    (private / 'session.jsonl').write_text('{"message":"synthetic usage"}\n', encoding='utf-8')
+
+    claude_home_runtime._expose_transcripts(source_home, layout, work_dir, 'demo')
+
+    assert link.lstat().st_ino == inode
+    assert list(link.parent.glob('*/*.jsonl')) == [link / 'session.jsonl']
+    assert (link / 'session.jsonl').read_text(encoding='utf-8') == '{"message":"synthetic usage"}\n'
+
+
+@pytest.mark.parametrize('old_target_exists', [False, True])
+def test_claude_transcript_link_replaces_old_target(tmp_path: Path, old_target_exists: bool) -> None:
+    source_home = tmp_path / 'user-home'
+    work_dir = tmp_path / 'work project'
+    layout = SimpleNamespace(claude_dir=tmp_path / 'agent-home' / '.claude')
+    old = tmp_path / 'old-agent-project'
+    if old_target_exists:
+        old.mkdir()
+        (old / 'session.jsonl').write_text('old transcript\n', encoding='utf-8')
+    link = source_home / '.claude' / 'projects' / f'ccb{project_key(work_dir)}--demo'
+    link.parent.mkdir(parents=True)
+    link.symlink_to(old, target_is_directory=True)
+
+    claude_home_runtime._expose_transcripts(source_home, layout, work_dir, 'demo')
+
+    private = layout.claude_dir / 'projects' / project_key(work_dir)
+    assert private.is_dir()
+    assert link.is_symlink() and link.resolve() == private.resolve()
+    if old_target_exists:
+        assert (old / 'session.jsonl').read_text(encoding='utf-8') == 'old transcript\n'
+
+
+@pytest.mark.parametrize('existing_kind', ['directory', 'file'])
+def test_claude_transcript_link_preserves_existing_paths(tmp_path: Path, existing_kind: str) -> None:
+    source_home = tmp_path / 'user-home'
+    work_dir = tmp_path / 'work project'
+    layout = SimpleNamespace(claude_dir=tmp_path / 'agent-home' / '.claude')
+    link = source_home / '.claude' / 'projects' / f'ccb{project_key(work_dir)}--demo'
+    link.parent.mkdir(parents=True)
+    if existing_kind == 'directory':
+        link.mkdir()
+    content = link / 'note' if existing_kind == 'directory' else link
+    content.write_text('keep existing content\n', encoding='utf-8')
+    inode = link.lstat().st_ino
+
+    claude_home_runtime._expose_transcripts(source_home, layout, work_dir, 'demo')
+
+    assert not link.is_symlink()
+    assert link.lstat().st_ino == inode
+    assert content.read_text(encoding='utf-8') == 'keep existing content\n'
+
+
+@pytest.mark.parametrize('use_workspace', [False, True])
+def test_claude_home_exposes_transcripts_without_memory_inheritance(tmp_path: Path, use_workspace: bool) -> None:
+    source_home = tmp_path / 'user-home'
+    project_root = tmp_path / 'project'
+    (project_root / '.ccb').mkdir(parents=True)
+    (project_root / '.ccb' / 'ccb.config').write_text('demo:claude\n', encoding='utf-8')
+    workspace = tmp_path / 'workspace' if use_workspace else None
+    if workspace is not None:
+        workspace.mkdir()
+    profile = ResolvedProviderProfile(provider='claude', agent_name='demo', inherit_memory=False)
+
+    overrides = prepare_claude_home_overrides_for_test(
+        tmp_path / 'runtime', profile, source_home=source_home,
+        project_root=project_root, agent_name='demo', workspace_path=workspace,
+    )
+
+    key = project_key(workspace or project_root)
+    private = Path(overrides['CLAUDE_CONFIG_DIR']) / 'projects' / key
+    link = source_home / '.claude' / 'projects' / f'ccb{key}--demo'
+    assert private.is_dir()
+    assert link.is_symlink() and link.resolve() == private.resolve()
+    assert not (source_home / '.claude' / 'projects' / key / 'memory').exists()
 
 
 def test_codex_home_overrides_pin_sqlite_and_windows_home(
