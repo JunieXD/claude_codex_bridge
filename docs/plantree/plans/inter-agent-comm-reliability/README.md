@@ -62,10 +62,14 @@ Post-push macOS timeout and bounded rerun are tracked explicitly.
 
 ## Issue 356 follow-up
 
+2026-10-08: [v8.7.8 publication verification](evidence/release-878-verification-20261008.md)
+tracks merged source, exact-candidate platform gates, public assets and fresh
+registry installation. The interrupted v8.7.7 tag is retained as a prerelease.
+
 2026-10-07: [Codex fullscreen footer and busy-text repair](evidence/codex-multiline-footer-20261007.md)
 is locally verified on the PR #368 merge baseline. Related
 regressions and real managed FIFO delivery pass; this shared repair is
-prepared for the owner-authorized v8.7.7 release.
+merged through PR #369 and included in the qualified v8.7.8 source tag.
 
 [2026-10-05 submission-stall investigation](topics/issue-356-submit-stall.md):
 isolated native reproduction of pasted-but-unsubmitted Codex requests. A distinct
