@@ -495,6 +495,11 @@ Exception (JunieXD Fork): auto memory is not a conversation. The managed
 agent's `projects/<key>/memory` links to the user's own memory for the same
 working directory, so both worlds share remembered facts but never transcripts.
 
+Bash tool commands use the real account `HOME` through a CCB-generated
+`CLAUDE_ENV_FILE`; an explicit caller value takes precedence. The Claude process
+still uses its private `HOME` and private keychain. Hooks, MCP servers, and
+status-line subprocesses retain the user tool configuration overrides.
+
 ## 7. Compatibility Contract
 
 To avoid breaking restore for older managed sessions, startup may reuse and

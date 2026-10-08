@@ -93,6 +93,10 @@ Maintained Fork: https://github.com/JunieXD/claude_codex_bridge
 - A managed Claude agent uses the user's `~/.gitconfig`, `~/.config/gh` and
   `~/.docker` through `GIT_CONFIG_GLOBAL`, `GH_CONFIG_DIR` and `DOCKER_CONFIG`
   instead of empty defaults in its private `HOME`. Explicit caller values win.
+- Managed Claude Bash tool commands use the real account `HOME` through a
+  generated `CLAUDE_ENV_FILE` on POSIX hosts. The Claude process keeps its private
+  `HOME` and keychain; explicit caller values win. Hooks, MCP servers, and status
+  lines retain the user tool configuration overrides.
 - `~/.ccb/memory/<provider>.md` (for example `claude.md`) is user memory that
   only CCB-managed agents of that provider receive, in every project. Use it
   for rules that only make sense under CCB, such as how Claude directs Codex;

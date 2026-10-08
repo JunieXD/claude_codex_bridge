@@ -329,6 +329,7 @@ def test_claude_home_overrides_wsl_exports_paths_and_api_env_names(
     assert 'CLAUDE_SESSION_ENV_ROOT/p' in wslenv
     assert 'CLAUDE_CODE_PLUGIN_SEED_DIR/p' in wslenv
     assert 'CLAUDE_CODE_PLUGIN_CACHE_DIR/p' in wslenv
+    assert not any('CLAUDE_ENV_FILE' in entry for entry in wslenv)
     assert 'ANTHROPIC_AUTH_TOKEN' in wslenv
     assert 'ANTHROPIC_API_KEY' in wslenv
     assert 'ANTHROPIC_BASE_URL' in wslenv
@@ -353,6 +354,45 @@ def test_claude_home_overrides_keep_user_tool_config(monkeypatch, tmp_path: Path
     # An explicit caller setting is inherited unchanged; missing configs are not invented.
     assert 'GH_CONFIG_DIR' not in overrides
     assert 'DOCKER_CONFIG' not in overrides
+
+
+@pytest.mark.skipif(os.name == 'nt', reason='Bash environment is POSIX-only')
+@pytest.mark.parametrize('refresh_home', [True, False])
+def test_claude_home_overrides_bash_uses_source_home(monkeypatch, tmp_path: Path, refresh_home: bool) -> None:
+    source_home = tmp_path / 'user home'
+    source_home.mkdir()
+    monkeypatch.setenv('CCB_SOURCE_HOME', str(source_home))
+    monkeypatch.delenv('CLAUDE_ENV_FILE', raising=False)
+
+    overrides = prepare_claude_home_overrides_for_test(
+        tmp_path / 'runtime', None, refresh_home=refresh_home,
+    )
+
+    env_file = Path(overrides['CLAUDE_ENV_FILE'])
+    assert env_file.is_absolute()
+    assert env_file == Path(overrides['CLAUDE_CONFIG_DIR']) / 'ccb-bash-env.sh'
+    assert overrides['HOME'] != str(source_home)
+    result = subprocess.run(
+        ['sh', '-c', '. "$1"; printf %s "$HOME"', 'sh', str(env_file)],
+        env={**os.environ, 'HOME': overrides['HOME']},
+        capture_output=True, text=True, check=True,
+    )
+    assert result.stdout == str(source_home)
+
+
+@pytest.mark.parametrize('refresh_home', [True, False])
+def test_claude_home_overrides_preserve_caller_bash_env(monkeypatch, tmp_path: Path, refresh_home: bool) -> None:
+    source_home = tmp_path / 'user home'
+    source_home.mkdir()
+    monkeypatch.setenv('CCB_SOURCE_HOME', str(source_home))
+    monkeypatch.setenv('CLAUDE_ENV_FILE', '/explicit/bash-env.sh')
+
+    overrides = prepare_claude_home_overrides_for_test(
+        tmp_path / 'runtime', None, refresh_home=refresh_home,
+    )
+
+    assert 'CLAUDE_ENV_FILE' not in overrides
+    assert not (Path(overrides['CLAUDE_CONFIG_DIR']) / 'ccb-bash-env.sh').exists()
 
 
 def test_claude_auto_memory_is_shared_with_user_home(tmp_path: Path) -> None:

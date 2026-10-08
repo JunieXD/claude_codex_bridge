@@ -6,6 +6,7 @@ import json
 import os
 import platform
 from pathlib import Path
+import shlex
 import shutil
 import stat
 import subprocess
@@ -165,6 +166,10 @@ def prepare_claude_home_overrides(
         'CLAUDE_SESSION_ENV_ROOT': str(layout.session_env_root),
     }
     overrides.update(_user_tool_config_environment(source_root))
+    if 'CLAUDE_ENV_FILE' not in os.environ and os.name != 'nt':
+        bash_env_file = (layout.claude_dir / 'ccb-bash-env.sh').absolute()
+        atomic_write_text(bash_env_file, f'export HOME={shlex.quote(str(source_root))}\n')
+        overrides['CLAUDE_ENV_FILE'] = str(bash_env_file)
     overrides.update(
         _claude_plugin_environment(
             source_root,
