@@ -166,7 +166,10 @@ def test_live_process_refuses_update_without_touching_checkout(fork_checkout, ca
     try:
         assert source_update.update_source_from_fork(SimpleNamespace(target=None), script_root=checkout) == 1
         assert git(checkout, 'rev-parse', 'HEAD') == before
-        assert 'still running' in capsys.readouterr().out
+        out = capsys.readouterr().out
+        assert 'still running' in out
+        assert 'ccb ps --all' in out
+        assert 'ccb kill --all' in out
     finally:
         process.terminate()
         process.wait(timeout=5)

@@ -56,6 +56,26 @@ def source_update_status(root: Path) -> dict:
     }
 
 
+def _process_table() -> str:
+    return subprocess.run(
+        ['ps', '-ww', '-axo', 'pid=,args='], check=True,
+        text=True, capture_output=True, timeout=10,
+    ).stdout
+
+
+def _process_arguments(row: str) -> tuple[int, list[str]] | None:
+    parts = row.strip().split(None, 1)
+    if len(parts) != 2 or not parts[0].isdigit():
+        return None
+    try:
+        arguments = shlex.split(parts[1])
+    except ValueError:
+        arguments = []
+    if len(arguments) > 1 and arguments[1] in {'-c', '-lc', '-xc'}:
+        return None
+    return int(parts[0]), arguments
+
+
 def _source_runtime_processes(root: Path, process_table: str) -> list[int]:
     relative_paths = (
         'ccb', 'ccb.py', 'lib/ccbd/main.py', 'lib/ccbd/keeper_main.py',
@@ -66,34 +86,42 @@ def _source_runtime_processes(root: Path, process_table: str) -> list[int]:
     updaters = {os.getpid(), os.getppid()}
     found = []
     for row in process_table.splitlines():
-        parts = row.strip().split(None, 1)
-        if len(parts) != 2 or not parts[0].isdigit() or int(parts[0]) in updaters:
+        parsed = _process_arguments(row)
+        if parsed is None:
             continue
-        try:
-            arguments = shlex.split(parts[1])
-        except ValueError:
-            arguments = []
-        if len(arguments) > 1 and arguments[1] in {'-c', '-lc', '-xc'}:
+        pid, arguments = parsed
+        if pid in updaters:
             continue
         if any(argument in paths for argument in arguments) or any(
-            re.search(rf'(?<!\S){re.escape(path)}(?=\s|$)', parts[1]) for path in paths
+            re.search(rf'(?<!\S){re.escape(path)}(?=\s|$)', row) for path in paths
         ):
-            found.append(int(parts[0]))
+            found.append(pid)
     return found
 
 
+def live_project_roots(root: Path) -> list[Path]:
+    process_table = _process_table()
+    script = str(Path(root).resolve() / 'lib/ccbd/main.py')
+    projects = set()
+    for row in process_table.splitlines():
+        parsed = _process_arguments(row)
+        if parsed is None:
+            continue
+        _pid, arguments = parsed
+        if script in arguments and '--project' in arguments:
+            projects.add(Path(arguments[arguments.index('--project')+1]).resolve())
+    return sorted(projects)
+
+
 def _require_source_runtimes_stopped(root: Path) -> None:
-    process_table = subprocess.run(
-        ['ps', '-ww', '-axo', 'pid=,args='], check=True,
-        text=True, capture_output=True, timeout=10,
-    ).stdout
+    process_table = _process_table()
     processes = _source_runtime_processes(root, process_table)
     if processes:
         raise ValueError(
             f'Source runtimes are still running (PIDs: {", ".join(map(str, processes))}). '
             'Finish queued/running work, then exit source CCB projects before updating; '
             'idle runtimes can accept new tasks and must also be stopped.'
-            ' After work finishes, run ccb kill inside each source project and retry.'
+            ' Run ccb ps --all to inspect projects; once idle, run ccb kill --all and retry.'
         )
 
 

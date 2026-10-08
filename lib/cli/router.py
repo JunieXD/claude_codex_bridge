@@ -94,6 +94,8 @@ def print_start_help(*, file=None) -> None:
                                     Run one worker/reviewer/orchestrator/round-checker round and write loop artifacts.
               ccb kill             Stop the current project's background runtime.
               ccb kill -f          Force cleanup project-owned runtime residue.
+              ccb ps --all         Show running projects from this CCB installation.
+              ccb kill --all [-f]  Stop idle projects; always skip the calling agent's project.
               ccb cleanup          Prune safe provider rebuildable caches after ccbd is stopped.
               ccb cleanup --legacy-provider-caches
                                     Also remove caches for project roots that no longer exist.
@@ -153,14 +155,18 @@ def print_kill_help(*, file=None) -> None:
     print(
         dedent(
             """
-            usage: ccb kill [-f]
+            usage: ccb kill [-f] [--all]
 
             Project runtime cleanup:
               ccb kill     Stop the current project's ccbd, agents, and tmux namespace.
               ccb kill -f  Force cleanup project-owned runtime residue before `ccb -n`.
+              ccb kill --all     Stop idle projects from this CCB installation.
+              ccb kill -f --all  Also stop busy projects, except the calling agent's project.
 
             Notes:
-              - `kill` is project-scoped. It does not bootstrap a missing `.ccb`.
+              - Without `--all`, `kill` is project-scoped. It does not bootstrap a missing `.ccb`.
+              - `--all` skips busy/starting agents and queued work unless `-f` is set.
+              - `--all` always skips the calling managed agent's project; any skipped project returns status 1.
               - `kill` still works when `.ccb` exists but `ccb.config` is missing or stale.
               - Use `ccb -n` after `ccb kill` when you want to rebuild runtime state but keep config and managed agent history.
             """
@@ -333,10 +339,11 @@ _COMMAND_HELP = {
           `ccb logs <agent>` remains a compatibility alias.
     """,
     "ps": """
-        usage: ccb ps
+        usage: ccb ps [--all]
 
         Runtime diagnostics compatibility view:
           ccb ps   Show known runtime/session/workspace bindings.
+          ccb ps --all   Show every running project from this CCB installation; mark the caller's project as current.
           Prefer `ccb doctor ps` as the converged diagnostics entrypoint.
     """,
     "doctor-ps": """

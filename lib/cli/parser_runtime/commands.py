@@ -1046,8 +1046,11 @@ def _parse_loop_profile_counts(raw_profiles: tuple[str, ...], *, error_type) -> 
 def parse_kill(tokens: list[str], *, project: str | None, error_type) -> ParsedKillCommand:
     parser = argparse.ArgumentParser(prog='ccb kill', add_help=False)
     parser.add_argument('-f', '--force', action='store_true')
+    parser.add_argument('--all', dest='all_projects', action='store_true')
     namespace = parse_args(parser, tokens, error_message='invalid kill command', error_type=error_type)
-    return ParsedKillCommand(project=project, force=bool(namespace.force))
+    if namespace.all_projects and project is not None:
+        raise error_type('--all cannot be combined with --project')
+    return ParsedKillCommand(project=project, force=bool(namespace.force), all_projects=namespace.all_projects)
 
 
 def parse_cleanup(tokens: list[str], *, project: str | None, error_type) -> ParsedCleanupCommand:
@@ -1061,8 +1064,12 @@ def parse_cleanup(tokens: list[str], *, project: str | None, error_type) -> Pars
 
 
 def parse_ps(tokens: list[str], *, project: str | None, error_type) -> ParsedPsCommand:
-    require_no_extra(tokens, command='ps', error_type=error_type)
-    return ParsedPsCommand(project=project)
+    parser = argparse.ArgumentParser(prog='ccb ps', add_help=False)
+    parser.add_argument('--all', dest='all_projects', action='store_true')
+    namespace = parse_args(parser, tokens, error_message='invalid ps command', error_type=error_type)
+    if namespace.all_projects and project is not None:
+        raise error_type('--all cannot be combined with --project')
+    return ParsedPsCommand(project=project, all_projects=namespace.all_projects)
 
 
 def parse_ping(tokens: list[str], *, project: str | None, error_type) -> ParsedPingCommand:

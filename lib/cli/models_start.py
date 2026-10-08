@@ -17,6 +17,7 @@ class ParsedStartCommand:
 class ParsedKillCommand:
     project: str | None
     force: bool = False
+    all_projects: bool = False
     kind: str = 'kill'
 
 
@@ -241,6 +242,7 @@ class ParsedCleanupCommand:
 class ParsedPsCommand:
     project: str | None
     alive_only: bool = False
+    all_projects: bool = False
     kind: str = 'ps'
 
 

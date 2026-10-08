@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+from dataclasses import replace
+import os
 import sys
 from pathlib import Path
 from typing import Sequence, TextIO
 
 from agents.config_loader import ensure_bootstrap_project_config
 from cli.context import CliContextBuilder
+from cli.management_runtime.source_update import live_project_roots
+from cli.models import ParsedPsCommand
 from cli.phase2_errors import handle_phase2_exception, parse_phase2_command
 from cli.phase2_runtime import (
     build_context as _build_context_impl,
@@ -79,6 +83,8 @@ def maybe_handle_phase2(
         return 2
 
     try:
+        if command.kind in {'ps', 'kill'} and command.all_projects:
+            return _dispatch_all_projects(command, cwd=cwd, out=out)
         try:
             context = _build_context(command, cwd=cwd, out=out)
         except ProjectDiscoveryError:
@@ -90,6 +96,42 @@ def maybe_handle_phase2(
         return _dispatch(context, command, out)
     except Exception as exc:
         return handle_phase2_exception(err, command_kind=command.kind, exc=exc)
+
+
+def _dispatch_all_projects(command, *, cwd: Path | None, out: TextIO) -> int:
+    roots = live_project_roots(Path(__file__).resolve().parents[2])
+    if not roots:
+        print('no running CCB projects', file=out)
+        return 0
+    caller = os.environ.get('CCB_CALLER_PROJECT_ROOT')
+    caller_root = Path(caller).resolve() if caller else None
+    killed = skipped = 0
+    for root in roots:
+        current = root == caller_root
+        marker = ' (current)' if current and command.kind == 'ps' else ''
+        print(f'== {root}{marker}', file=out)
+        if command.kind == 'kill' and current:
+            print("skipped: current agent's project; run ccb kill there from a terminal", file=out)
+            skipped += 1
+            continue
+        project_command = replace(command, project=str(root), all_projects=False)
+        context = _build_context(project_command, cwd=cwd, out=out)
+        if _command_requires_bootstrap_config(project_command):
+            ensure_bootstrap_project_config(context.project.project_root)
+        if command.kind == 'kill':
+            summary = ps_summary(context, ParsedPsCommand(project=str(root)))
+            busy = next((agent for agent in summary['agents']
+                         if agent['state'] in {'busy', 'starting'} or agent['queue_depth'] > 0), None)
+            if busy is not None and not command.force:
+                print(f"skipped: busy ({busy['agent_name']}={busy['state']}, queue={busy['queue_depth']})", file=out)
+                skipped += 1
+                continue
+        _dispatch(context, project_command, out)
+        if command.kind == 'kill':
+            killed += 1
+    if command.kind == 'kill':
+        print(f'killed: {killed}, skipped: {skipped}', file=out)
+    return 1 if skipped else 0
 
 
 def _command_requires_bootstrap_config(command) -> bool:

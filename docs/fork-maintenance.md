@@ -37,6 +37,10 @@ Maintained Fork: https://github.com/JunieXD/claude_codex_bridge
 - Source version checks compare this Fork's current branch ancestry with
   `origin`, distinguishing current, ahead, behind, and diverged revisions.
   They fetch Git metadata but never merge, install, or restart anything.
+- `ccb ps --all` lists running projects from this CCB installation and marks
+  the calling managed agent's project. `ccb kill --all` stops idle projects,
+  skipping busy/starting agents and queued work unless `-f` is set. It always
+  skips the caller's project and returns status 1 when any project is skipped.
 - Installed source entrypoints allow ordinary projects without disabling the
   development-checkout guard. The installed symlink launcher identifies its
   resolved source root; direct, uninstalled source commands and `ccb_test`
