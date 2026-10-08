@@ -60,9 +60,11 @@ def test_copy_payload_uses_allowlist_and_keeps_unix_builders_out(monkeypatch, tm
     (export_root / "shared" / "runtime.py").write_text("shared\n", encoding="utf-8")
     (export_root / "VERSION").write_text("8.6.6\n", encoding="utf-8")
     windows_root = export_root / "platforms" / "windows"
-    for name in ("docs", "installer"):
+    for name in ("docs", "installer", "tools"):
         (windows_root / name).mkdir(parents=True)
         (windows_root / name / "marker.txt").write_text(name, encoding="utf-8")
+    (windows_root / 'ccb.py').write_text('native entry\n', encoding='utf-8')
+    (windows_root / 'start.ps1').write_text('native wrapper\n', encoding='utf-8')
     (export_root / "install.sh").write_text("unix\n", encoding="utf-8")
     (export_root / "scripts").mkdir()
     (export_root / "scripts" / "build_linux_release.py").write_text("unix\n", encoding="utf-8")
@@ -74,6 +76,9 @@ def test_copy_payload_uses_allowlist_and_keeps_unix_builders_out(monkeypatch, tm
     assert (artifact_root / "VERSION").is_file()
     assert (artifact_root / "shared" / "runtime.py").is_file()
     assert (artifact_root / "platforms/windows/installer/marker.txt").is_file()
+    assert (artifact_root / 'platforms/windows/ccb.py').read_text(encoding='utf-8') == 'native entry\n'
+    assert (artifact_root / 'platforms/windows/start.ps1').is_file()
+    assert (artifact_root / 'platforms/windows/tools/marker.txt').is_file()
     assert not (artifact_root / "install.sh").exists()
     assert not (artifact_root / "scripts").exists()
 
@@ -107,6 +112,12 @@ def test_metadata_archive_and_checksum_are_self_consistent(tmp_path: Path) -> No
     bin_dir.mkdir(parents=True)
     (artifact_root / "VERSION").write_text("8.6.6\n", encoding="utf-8")
     (artifact_root / "install.ps1").write_text("Write-Host install\n", encoding="utf-8")
+    for relative in ('platforms/windows/ccb.py', 'platforms/windows/start.ps1',
+                     'lib/platforms/windows/herdr/entrypoint.py',
+                     'lib/platforms/windows/herdr/cli_entrypoint.py'):
+        path = artifact_root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('test entry\n', encoding='utf-8')
     entries = {
         "ccb": "bin/ccb.exe",
         "ask": "bin/ask.exe",

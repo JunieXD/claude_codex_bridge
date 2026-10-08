@@ -27,6 +27,7 @@ class HerdrCliRequestAdapter:
         session_name: str,
         herdr_executable: str | None = None,
         run_fn: Callable[..., subprocess.CompletedProcess] = subprocess.run,
+        foreground_run_fn: Callable[..., subprocess.CompletedProcess] | None = None,
         popen_fn: Callable[..., subprocess.Popen] = subprocess.Popen,
         which_fn: Callable[[str], str | None] = shutil.which,
         socket_ref: str | None = None,
@@ -35,6 +36,9 @@ class HerdrCliRequestAdapter:
         self._session_name = session_name
         self._herdr_executable = herdr_executable
         self._run_fn = run_fn
+        # Control wrappers may force CREATE_NO_WINDOW. Interactive attachment
+        # needs an independent runner that inherits the invoking console.
+        self._foreground_run_fn = foreground_run_fn or subprocess.run
         self._popen_fn = popen_fn
         self._which_fn = which_fn
         self._socket_ref = str(socket_ref or "").strip() or None
@@ -671,6 +675,16 @@ class HerdrCliRequestAdapter:
         if not pane_id:
             raise self._failed("respawn_pane", "Herdr respawn_pane requires pane_id", session_name=session_name)
         if command:
+            process = self._pane_process_info({'pane_id': pane_id, 'session_name': session_name})
+            shell_pid = _mapping(process.get('process_info')).get('shell_pid')
+            foreground_pid = process.get('foreground_pid')
+            if not shell_pid or foreground_pid != shell_pid:
+                raise self._failed(
+                    'respawn_pane',
+                    'Refusing to send a launch command: pane is not confirmed at its idle shell. '
+                    'Use an explicit agent restart after checking its current task.',
+                    session_name=session_name,
+                )
             self._command(
                 "respawn_pane",
                 ["pane", "run", pane_id, command],
@@ -948,27 +962,23 @@ class HerdrCliRequestAdapter:
             expect_json=False,
             session_name=session_name,
         )
-        # `herdr session attach` is a foreground terminal operation that only
-        # succeeds when the calling terminal can take over the session.  In
-        # contexts such as Herdr UI (where the terminal already belongs to a
-        # different session) or daemon startups the command may exit non-zero
-        # or block indefinitely.  Treat a failed attach as non-fatal: the
-        # preceding `workspace focus` already brought the target workspace
-        # into view.
+        # This process owns the foreground terminal until the user detaches.
+        # A workspace focus is not evidence of successful UI attachment.
         executable = self._resolve_executable()
         command = [executable, "session", "attach", session_name]
-        attached = False
         try:
-            self._run_fn(command, check=True, timeout=5, env=_env_without_xdg_redirects())
-            attached = True
-        except (OSError, subprocess.SubprocessError):
-            pass
+            self._foreground_run_fn(command, check=True, creationflags=0, env=_env_without_xdg_redirects())
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise self._failed(
+                'attach_namespace', f'Herdr foreground attach failed: {exc}',
+                session_name=session_name,
+            ) from exc
         return {
             "status": "ok",
             "namespace_id": namespace_id,
             "session_name": session_name,
             "window_id": workspace_id,
-            "attached": attached,
+            "attached": True,
         }
 
     def _is_alive(self, payload: Mapping[str, object]) -> Mapping[str, object]:

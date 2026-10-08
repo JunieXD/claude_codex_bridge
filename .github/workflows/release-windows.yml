@@ -6,14 +6,23 @@ on:
       tag:
         description: "Windows release tag to build and publish"
         required: true
-        default: "v8.7.6"
+        default: "v8.7.8"
+      source_ref:
+        description: "Candidate ref to validate without publishing (optional)"
+        required: false
+        default: ""
+      publish:
+        description: "Publish artifacts to the tagged release"
+        type: boolean
+        required: true
+        default: true
   push:
     tags:
       - "v*.*.*"
       - "v*-beta.*"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: windows-release-${{ github.event.inputs.tag || github.ref_name }}
@@ -28,7 +37,7 @@ jobs:
       - name: Checkout exact release ref
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.tag || github.ref_name }}
+          ref: ${{ github.event.inputs.source_ref || github.event.inputs.tag || github.ref_name }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -46,8 +55,11 @@ jobs:
         shell: pwsh
         env:
           TAG_NAME: ${{ github.event.inputs.tag || github.ref_name }}
+          SOURCE_REF: ${{ github.event.inputs.source_ref }}
+          BUILD_ONLY: ${{ github.event_name == 'workflow_dispatch' && !inputs.publish }}
         run: |
           $ErrorActionPreference = "Stop"
+          if ($env:SOURCE_REF -and $env:BUILD_ONLY -ne "true") { throw "source_ref requires publish=false" }
           $version = (Get-Content VERSION -Raw).Trim()
           if ($env:TAG_NAME -ne "v$version") { throw "tag/version mismatch: $env:TAG_NAME vs $version" }
           $packageVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
@@ -98,6 +110,10 @@ jobs:
           & (Join-Path $prefix "bin\ccb.exe") --print-version
           & (Join-Path $prefix "bin\ccb.exe") --help | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "installed ccb.exe smoke failed" }
+          & (Join-Path $prefix "bin\ccb.cmd") --print-version
+          if ($LASTEXITCODE -ne 0) { throw "installed ccb.cmd smoke failed" }
+          & (Join-Path $prefix "bin\ccb.cmd") --help | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "installed ccb.cmd help smoke failed" }
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
@@ -110,6 +126,9 @@ jobs:
 
   publish-release:
     name: Publish Windows GitHub release
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish }}
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     needs: build-windows-x64
 

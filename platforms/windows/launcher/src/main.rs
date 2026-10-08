@@ -42,6 +42,11 @@ fn run() -> Result<i32, String> {
         command.args(&forwarded);
         command.env("CCB_WINDOWS_LAUNCHER", &executable);
         command.env("CCB_INSTALL_PREFIX", install_root);
+        // Initial Windows plugin projection can exceed the shared 30s budget.
+        // Keep an explicit upper bound and respect a user's override.
+        if env::var_os("CCB_STARTUP_TRANSACTION_TIMEOUT_S").is_none() {
+            command.env("CCB_STARTUP_TRANSACTION_TIMEOUT_S", "180");
+        }
         suppress_child_console(&mut command);
 
         match command.status() {
@@ -68,7 +73,7 @@ fn entry_script(executable: &Path, install_root: &Path) -> Result<PathBuf, Strin
         .unwrap_or("ccb")
         .to_ascii_lowercase();
     let relative = match stem.as_str() {
-        "ccb" | "ccb-windows-launcher" => PathBuf::from("ccb.py"),
+        "ccb" | "ccb-windows-launcher" => PathBuf::from("platforms").join("windows").join("ccb.py"),
         "ask" => PathBuf::from("bin").join("ask.py"),
         "autonew" => PathBuf::from("bin").join("autonew.py"),
         "ctx-transfer" => PathBuf::from("bin").join("ctx-transfer.py"),
@@ -114,7 +119,13 @@ fn normalize_exit_code(code: i32) -> u8 {
 
 #[cfg(target_os = "windows")]
 fn suppress_child_console(command: &mut Command) {
+    use std::io::IsTerminal;
     use std::os::windows::process::CommandExt;
+    // Interactive invocations must inherit their console for Herdr/ConPTY.
+    // Hide only control commands started without a terminal.
+    if std::io::stdin().is_terminal() || std::io::stdout().is_terminal() {
+        return;
+    }
     // CREATE_NO_WINDOW: without it a console-subsystem child (python.exe)
     // spawned from a parent with no console is allocated a brand-new visible
     // console window that flashes and then closes when the child exits.
@@ -134,7 +145,7 @@ mod tests {
         let root = Path::new(r"C:\Users\tester\AppData\Local\codex-dual");
         assert_eq!(
             entry_script(Path::new(r"C:\x\bin\ccb.exe"), root).unwrap(),
-            root.join("ccb.py")
+            root.join("platforms").join("windows").join("ccb.py")
         );
         assert_eq!(
             entry_script(Path::new(r"C:\x\bin\ask.exe"), root).unwrap(),

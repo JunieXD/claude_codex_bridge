@@ -1,5 +1,11 @@
 # Native Windows Release Plan
 
+[PR #368 isolation and merge audit](evidence/pr368-review-20261007.md) records
+the reviewed source, trusted-base gate and native qualification limit.
+
+[Installed entrypoint repair](evidence/pr368-installed-payload-20261008.md)
+tracks the native archive failure and build-only qualification for v8.7.8.
+
 Date: 2026-08-12
 
 ## Goal
